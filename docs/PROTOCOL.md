@@ -102,6 +102,27 @@ Server changes:
 - context block schema
 - raw event log reference schema
 
+## Raw Event Logs
+
+Read-only App Server runs create one JSONL artifact under
+`.codex-sidecar/logs/app-server/` by default. `SidecarResult.rawEventLogRef`
+contains the local path to that file for both successful runs and protocol
+failures after log creation.
+
+Each line is a JSON object with:
+
+- `timestamp`
+- `category`: `lifecycle | protocol | stderr | diagnostic`
+- `event`
+- optional `direction`: `inbound | outbound`
+- optional `data`
+
+The log captures App Server startup, initialize/thread/turn lifecycle markers,
+raw inbound/outbound protocol lines, retained notifications, stderr chunks,
+timeouts, process exits, and protocol errors. The default log directory is
+git-ignored because entries can contain prompts, file paths, and raw local
+diagnostics.
+
 The following are adapter details and may change with App Server versions:
 
 - process startup flags

@@ -8,6 +8,7 @@ import {
   type AppServerThreadStartResponse,
   type AppServerTurnStartResponse,
 } from "./app-server.js";
+import type { AppServerLogEntry } from "./app-server-logs.js";
 import type { SidecarRequest } from "./types.js";
 
 export type AppServerRequestId = string | number;
@@ -64,6 +65,7 @@ export interface AppServerClientOptions {
   onNotification?: (message: AppServerWireNotification) => void;
   onServerRequest?: (message: AppServerWireRequest) => void;
   onProtocolError?: (error: Error) => void;
+  onLogEntry?: (entry: Omit<AppServerLogEntry, "timestamp">) => void;
 }
 
 interface PendingRequest<T = unknown> {
@@ -111,30 +113,59 @@ export class AppServerClient {
   private readonly onNotification?: (message: AppServerWireNotification) => void;
   private readonly onServerRequest?: (message: AppServerWireRequest) => void;
   private readonly onProtocolError?: (error: Error) => void;
+  private readonly onLogEntry?: (entry: Omit<AppServerLogEntry, "timestamp">) => void;
 
   private constructor(
     private readonly child: ChildProcessWithoutNullStreams,
     options: AppServerClientOptions,
+    startup: { command: string; args: string[] },
   ) {
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.onNotification = options.onNotification;
     this.onServerRequest = options.onServerRequest;
     this.onProtocolError = options.onProtocolError;
+    this.onLogEntry = options.onLogEntry;
+
+    this.log({
+      category: "lifecycle",
+      event: "process/start",
+      data: {
+        command: startup.command,
+        args: startup.args,
+        cwd: options.cwd,
+        envProvided: options.env !== undefined,
+      },
+    });
 
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => this.handleStdout(chunk));
     child.stderr.on("data", (chunk: string) => {
       this.stderrBuffer += chunk;
+      this.log({
+        category: "stderr",
+        event: "process/stderr",
+        data: { chunk },
+      });
     });
     child.once("error", (error) => {
       const protocolError = new Error(`PROTOCOL_ERROR: App Server process error: ${error.message}`);
+      this.log({
+        category: "diagnostic",
+        event: "process/error",
+        data: { message: protocolError.message },
+      });
       this.rejectAll(protocolError);
       this.rejectNotificationWaiters(protocolError);
     });
     child.once("exit", (code, signal) => {
       this.closed = true;
       const error = new Error(`PROTOCOL_ERROR: App Server exited before completing pending work: code=${code ?? "null"} signal=${signal ?? "null"}`);
+      this.log({
+        category: "lifecycle",
+        event: "process/exit",
+        data: { code, signal, pending: this.pending.size, message: error.message },
+      });
       this.rejectAll(error);
       this.rejectNotificationWaiters(error);
     });
@@ -150,7 +181,7 @@ export class AppServerClient {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    return new AppServerClient(child, options);
+    return new AppServerClient(child, options, { command, args });
   }
 
   get stderr(): string {
@@ -184,12 +215,24 @@ export class AppServerClient {
     const promise = new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
+        this.log({
+          category: "diagnostic",
+          event: "request/timeout",
+          direction: "outbound",
+          data: { id, method, requestTimeoutMs: this.requestTimeoutMs },
+        });
         reject(new AppServerProtocolError(`timeout waiting for ${method} response id=${id}`));
       }, this.requestTimeoutMs);
 
       this.pending.set(id, { method, resolve: resolve as (value: unknown) => void, reject, timer });
     });
 
+    this.log({
+      category: "protocol",
+      event: "request/send",
+      direction: "outbound",
+      data: payload,
+    });
     this.child.stdin.write(encodeAppServerMessage(payload));
     return promise;
   }
@@ -200,6 +243,12 @@ export class AppServerClient {
     }
 
     const payload = params === undefined ? { method } : { method, params };
+    this.log({
+      category: "protocol",
+      event: "notification/send",
+      direction: "outbound",
+      data: payload,
+    });
     this.child.stdin.write(encodeAppServerMessage(payload));
   }
 
@@ -237,6 +286,11 @@ export class AppServerClient {
     }
 
     this.closed = true;
+    this.log({
+      category: "lifecycle",
+      event: "client/close",
+      data: { pending: this.pending.size, notificationWaiters: this.notificationWaiters.size },
+    });
     this.rejectAll(new AppServerProtocolError("App Server client closed before completing pending requests"));
     this.rejectNotificationWaiters(new AppServerProtocolError("App Server client closed before receiving pending notifications"));
     this.child.stdin.end();
@@ -270,9 +324,22 @@ export class AppServerClient {
       }
 
       try {
+        this.log({
+          category: "protocol",
+          event: "message/receive",
+          direction: "inbound",
+          data: { line },
+        });
         this.handleMessage(parseAppServerLine(line));
       } catch (error) {
-        this.failProtocolError(error instanceof Error ? error : new AppServerProtocolError(String(error)));
+        const protocolError = error instanceof Error ? error : new AppServerProtocolError(String(error));
+        this.log({
+          category: "diagnostic",
+          event: "message/parse-error",
+          direction: "inbound",
+          data: { line, message: protocolError.message },
+        });
+        this.failProtocolError(protocolError);
         return;
       }
     }
@@ -318,6 +385,11 @@ export class AppServerClient {
 
   private failProtocolError(error: Error): void {
     this.onProtocolError?.(error);
+    this.log({
+      category: "diagnostic",
+      event: "protocol/error",
+      data: { message: error.message },
+    });
     this.rejectAll(error);
     this.rejectNotificationWaiters(error);
     this.closed = true;
@@ -345,6 +417,10 @@ export class AppServerClient {
       this.notificationWaiters.delete(waiter);
       waiter.reject(error);
     }
+  }
+
+  private log(entry: Omit<AppServerLogEntry, "timestamp">): void {
+    this.onLogEntry?.(entry);
   }
 }
 

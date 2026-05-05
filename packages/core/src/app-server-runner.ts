@@ -1,6 +1,7 @@
 import type { AppServerThreadStartResponse, AppServerTurnStartResponse } from "./app-server.js";
 import { AppServerClient, type AppServerInitializeResult, type AppServerWireNotification } from "./app-server-client.js";
 import { collectAgentMessageText, findTurnCompletion } from "./app-server-events.js";
+import { createAppServerEventLogger, type AppServerEventLogger } from "./app-server-logs.js";
 import { errorResult, toSidecarError } from "./results.js";
 import type { SidecarRequest, SidecarResult } from "./types.js";
 
@@ -19,6 +20,7 @@ export interface AppServerSessionClient {
 
 export interface AppServerRunOptions {
   client?: AppServerSessionClient;
+  eventLogDir?: string;
   version?: string;
   turnTimeoutMs?: number;
 }
@@ -36,21 +38,82 @@ export async function runReadOnlyAppServerRequest(
     );
   }
 
-  const client = options.client ?? AppServerClient.start();
-  const ownsClient = options.client === undefined;
+  let logger: AppServerEventLogger | undefined;
+  let client: AppServerSessionClient | undefined;
+  let ownsClient = false;
 
   try {
+    logger = await createAppServerEventLogger(request, { logDir: options.eventLogDir });
+    logger.write({
+      category: "lifecycle",
+      event: "run/start",
+      data: {
+        workflow: request.workflow,
+        projectRoot: request.projectRoot,
+        readonly: request.readonly,
+        resultFormat: request.resultFormat,
+      },
+    });
+
+    client =
+      options.client ??
+      AppServerClient.start({
+        onLogEntry: (entry) => logger?.write(entry),
+      });
+    ownsClient = options.client === undefined;
+
+    logger.write({ category: "lifecycle", event: "initialize/start" });
     await client.initialize(options.version ?? "0.0.0");
+    logger.write({ category: "lifecycle", event: "initialize/complete" });
+
+    logger.write({ category: "lifecycle", event: "thread/start" });
     const threadResponse = await client.startThread(request);
     const threadId = threadResponse.thread.id;
+    logger.write({
+      category: "lifecycle",
+      event: "thread/complete",
+      data: { threadId, status: threadResponse.thread.status },
+    });
+
+    logger.write({
+      category: "lifecycle",
+      event: "turn/start",
+      data: { threadId },
+    });
     const turnResponse = await client.startTurn(request, threadId);
     const turnId = turnResponse.turn.id;
     const filter = { threadId, turnId };
+    logger.write({
+      category: "lifecycle",
+      event: "turn/started",
+      data: { threadId, turnId, status: turnResponse.turn.status },
+    });
 
-    await client.waitForNotification(
-      (notification) => findTurnCompletion([notification], filter) !== undefined,
-      options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS,
-    );
+    const turnTimeoutMs = options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
+    logger.write({
+      category: "lifecycle",
+      event: "turn/wait-completion",
+      data: { threadId, turnId, turnTimeoutMs },
+    });
+
+    try {
+      await client.waitForNotification(
+        (notification) => findTurnCompletion([notification], filter) !== undefined,
+        turnTimeoutMs,
+      );
+    } catch (error) {
+      logger.write({
+        category: "diagnostic",
+        event: "turn/timeout-or-wait-error",
+        data: {
+          threadId,
+          turnId,
+          turnTimeoutMs,
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+      throw error;
+    }
 
     const completion = findTurnCompletion(client.notifications, filter);
     if (!completion) {
@@ -83,14 +146,38 @@ export async function runReadOnlyAppServerRequest(
           trust: "local",
         },
       ],
-      rawEventLogRef: `app-server:thread=${threadId}:turn=${turnId}:notifications=${client.notifications.length}`,
+      rawEventLogRef: logger.ref,
     };
   } catch (error) {
-    return errorResult(request, toSidecarError(error));
+    logger?.write({
+      category: "diagnostic",
+      event: "run/error",
+      data: { message: error instanceof Error ? error.message : String(error) },
+    });
+
+    const result = errorResult(request, toSidecarError(error));
+    if (logger) {
+      result.rawEventLogRef = logger.ref;
+      if (result.error) {
+        result.error.data = {
+          ...(result.error.data ?? {}),
+          rawEventLogRef: logger.ref,
+          stderr: client?.stderr,
+        };
+      }
+    }
+
+    return result;
   } finally {
-    if (ownsClient) {
+    if (logger && client) {
+      writeRetainedClientDiagnostics(logger, client);
+    }
+
+    if (ownsClient && client) {
       await client.close?.();
     }
+
+    await logger?.close();
   }
 }
 
@@ -106,5 +193,25 @@ function recommendedNextAction(request: SidecarRequest): string {
       return "Verify high-severity risks first and keep source boundaries explicit.";
     case "work":
       return "Review the isolated worktree output before merging.";
+  }
+}
+
+function writeRetainedClientDiagnostics(logger: AppServerEventLogger, client: AppServerSessionClient): void {
+  logger.write({
+    category: "diagnostic",
+    event: "client/retained-state",
+    data: {
+      notifications: client.notifications.length,
+      stderrBytes: client.stderr?.length ?? 0,
+    },
+  });
+
+  for (const notification of client.notifications) {
+    logger.write({
+      category: "protocol",
+      event: "notification/retained",
+      direction: "inbound",
+      data: notification,
+    });
   }
 }

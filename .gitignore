@@ -2,6 +2,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+.codegraph/
+.codex-sidecar/logs/
 .env
 .env.*
 !.env.example
