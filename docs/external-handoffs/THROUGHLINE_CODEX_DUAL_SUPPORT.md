@@ -22,6 +22,8 @@ The desired shape is:
 
 Do not begin by replacing Claude transcript handling. Begin by identifying independent background tasks that can be delegated to Codex for review, risk-checking, or second-pass interpretation.
 
+If the runtime environment does not have usable Codex support, keep the current Claude subagent behavior unchanged. Do not remove or degrade the existing Claude path just because a Codex adapter exists.
+
 ## Architecture Direction
 
 Separate the project into these conceptual layers:
@@ -128,6 +130,16 @@ Recommended policy:
 | Codex | Use Codex sidecar only for isolation, structured result capture, or explicit second-pass review |
 | Unknown / automation | Require explicit config, not implicit recursion |
 
+Availability policy:
+
+| Codex availability | Behavior |
+|---|---|
+| Codex sidecar configured and healthy | Use it for the approved independent sidecar tasks |
+| Codex unavailable, unconfigured, or failing health checks | Keep the existing Claude subagent path |
+| Codex explicitly disabled | Keep the existing Claude subagent path |
+
+This is not a hidden fallback to a different behavior. It is the compatibility mode: the current Claude-backed behavior remains the baseline when Codex cannot be used.
+
 ## Implementation Checklist
 
 - Audit existing Claude transcript and handoff contracts.
@@ -137,6 +149,7 @@ Recommended policy:
 - Add fixture snapshots for Codex context blocks.
 - Add docs showing Claude primary and Codex primary modes.
 - Add host-agent detection or explicit config to avoid Codex-on-Codex recursion.
+- Add a Codex availability check before shifting any background Claude subagent task.
 - Add a read-only `codex-sidecar` smoke using a sample handoff.
 
 ## Done Definition
@@ -147,4 +160,5 @@ Throughline is dual-supported when:
 - Codex can receive `throughline_handoff` context blocks
 - Codex can return structured results that Throughline can store or link
 - Codex primary mode does not recursively delegate without a real boundary
+- Codex-unavailable environments still use the existing Claude subagent behavior
 - docs explain when to use Claude, current Codex, or Codex sidecar

@@ -22,6 +22,8 @@ The desired shape is:
 
 This means the first task is to identify background agent roles that are naturally independent: audit, risk-check, second-pass review, or scoped verification. Those are good Codex sidecar candidates.
 
+If the runtime environment does not have usable Codex support, keep the current Claude subagent behavior unchanged. Do not remove or degrade the existing Claude path just because a Codex adapter exists.
+
 ## Architecture Direction
 
 Separate the project into these conceptual layers:
@@ -130,6 +132,16 @@ Recommended policy:
 | Codex | Use Codex sidecar only for isolation, durable structured results, or explicit second-pass analysis |
 | Unknown / automation | Require explicit config and do not infer recursive delegation |
 
+Availability policy:
+
+| Codex availability | Behavior |
+|---|---|
+| Codex sidecar configured and healthy | Use it for the approved independent sidecar tasks |
+| Codex unavailable, unconfigured, or failing health checks | Keep the existing Claude subagent path |
+| Codex explicitly disabled | Keep the existing Claude subagent path |
+
+This is not a hidden fallback to a different behavior. It is the compatibility mode: the current Claude-backed behavior remains the baseline when Codex cannot be used.
+
 ## Implementation Checklist
 
 - Audit existing Claude commands, reports, hooks, and fixtures.
@@ -139,6 +151,7 @@ Recommended policy:
 - Add fixture snapshots for Codex context blocks and `SidecarResult` consumption.
 - Add docs for Claude primary, Codex primary, and automation modes.
 - Add execution policy to prevent unnecessary Codex-on-Codex recursion.
+- Add a Codex availability check before shifting any background Claude subagent task.
 - Add a `codex-sidecar` read-only smoke, ideally `codex_risk_check`.
 
 ## Done Definition
@@ -149,4 +162,5 @@ Spotter is dual-supported when:
 - Spotter findings can be consumed by Codex as structured context
 - Codex risk/review results can be stored without prose scraping
 - Codex primary mode avoids pointless recursive Codex delegation
+- Codex-unavailable environments still use the existing Claude subagent behavior
 - docs explain when Codex sidecar is useful and when direct current-agent handling is better

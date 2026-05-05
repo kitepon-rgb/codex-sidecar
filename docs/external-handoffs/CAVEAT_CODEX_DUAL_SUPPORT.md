@@ -22,6 +22,8 @@ The desired shape is:
 
 This means the first step is not "rewrite Caveat for Codex." The first step is to identify background agent tasks currently delegated to Claude and route suitable second-opinion, review, risk-check, and scoped-work tasks through `codex-sidecar`.
 
+If the runtime environment does not have usable Codex support, keep the current Claude subagent behavior unchanged. Do not remove or degrade the existing Claude path just because a Codex adapter exists.
+
 ## Architecture Direction
 
 Separate the project into these conceptual layers:
@@ -128,6 +130,16 @@ Recommended policy:
 | Codex | Use Codex sidecar only for isolation, structured result, worktree execution, or explicit second-pass review |
 | Unknown / automation | Require explicit config: `sidecar_agent: codex`, `disabled`, or future `auto` |
 
+Availability policy:
+
+| Codex availability | Behavior |
+|---|---|
+| Codex sidecar configured and healthy | Use it for the approved independent sidecar tasks |
+| Codex unavailable, unconfigured, or failing health checks | Keep the existing Claude subagent path |
+| Codex explicitly disabled | Keep the existing Claude subagent path |
+
+This is not a hidden fallback to a different behavior. It is the compatibility mode: the current Claude-backed behavior remains the baseline when Codex cannot be used.
+
 ## Implementation Checklist
 
 - Audit existing Claude commands, hooks, schemas, and fixtures.
@@ -136,6 +148,7 @@ Recommended policy:
 - Add fixture snapshots for Codex context blocks.
 - Add docs showing how Claude and Codex consume the same Caveat entry.
 - Add an execution policy that avoids unnecessary Codex-on-Codex recursion.
+- Add a Codex availability check before shifting any background Claude subagent task.
 - Add a smoke path using `codex-sidecar` read-only workflow.
 - Keep `codex_work` changes inside isolated worktrees and require allowed paths.
 
@@ -147,4 +160,5 @@ Caveat is dual-supported when:
 - Codex can receive relevant `caveat_entry` context blocks
 - Codex results can be stored or referenced without prose scraping
 - host-agent policy prevents accidental recursive Codex delegation
+- Codex-unavailable environments still use the existing Claude subagent behavior
 - docs explain Claude primary, Codex primary, and automation modes
