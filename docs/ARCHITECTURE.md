@@ -114,9 +114,9 @@ Provides an MCP server for Claude Code:
 - `codex_opinion`
 - `codex_risk_check`
 
-The MCP layer should expose stable tool schemas and translate calls into the
-same `core` request types used by the CLI. It is currently at descriptor/schema
-scaffold stage; wiring to real execution is tracked separately.
+The MCP layer exposes stable tool schemas and translates calls into the same
+`core` request types used by the CLI. Read-only tools use the shared core
+execution path and return `SidecarResult` JSON as structured MCP content.
 
 Read-only tools should be easy to call. Write-capable tools must require an
 explicit project config and must surface safety refusals as structured errors.

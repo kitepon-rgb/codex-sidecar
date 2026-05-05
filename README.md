@@ -64,7 +64,7 @@ The project now has a working generic spine:
 - path safety, safety profiles, and structured refusal/errors
 - stable `SidecarRequest` / `SidecarResult` types
 - CLI commands for all workflows
-- MCP tool descriptors and schemas
+- MCP tool descriptors, schemas, and core-backed tool handlers
 - Codex App Server stdio client, JSON-line protocol handling, initialize,
   `thread/start`, `turn/start`, completion waiting, and read-only turn execution
 - structured read-only result normalization for review, explore, opinion, and
@@ -82,8 +82,6 @@ Current limitations:
 
 - `codex_work` is intentionally unavailable until worktree-backed execution is
   wired end to end.
-- MCP handlers are still descriptor/schema-only and are tracked in
-  [issue #4](https://github.com/kitepon-rgb/codex-sidecar/issues/4).
 
 ## Related Docs
 

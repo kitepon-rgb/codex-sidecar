@@ -5,9 +5,8 @@ This file is the durable project task list. Keep it aligned with
 
 ## Current Priority
 
-1. Wire MCP to the same core execution path.
-2. Implement write workflows only through isolated worktrees.
-3. Add ecosystem adapters and fixture snapshots after the generic contracts are
+1. Implement write workflows only through isolated worktrees.
+2. Add ecosystem adapters and fixture snapshots after the generic contracts are
    stable.
 
 ## Active Tasks
@@ -17,7 +16,7 @@ This file is the durable project task list. Keep it aligned with
 | P0 | Normalize read-only workflows into structured `SidecarResult` fields | Done | [#1](https://github.com/kitepon-rgb/codex-sidecar/issues/1) |
 | P0 | Persist raw App Server event logs and diagnostics | Done | [#2](https://github.com/kitepon-rgb/codex-sidecar/issues/2) |
 | P1 | Expose timeout and cancellation controls for App Server turns | Done | [#3](https://github.com/kitepon-rgb/codex-sidecar/issues/3) |
-| P1 | Wire MCP tools to real sidecar execution | Open | [#4](https://github.com/kitepon-rgb/codex-sidecar/issues/4) |
+| P1 | Wire MCP tools to real sidecar execution | Done | [#4](https://github.com/kitepon-rgb/codex-sidecar/issues/4) |
 | P0 | Implement worktree-backed `codex_work` execution | Open | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |
 | P2 | Add ecosystem adapters and fixture snapshots | Open | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
 
