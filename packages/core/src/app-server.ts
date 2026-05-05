@@ -40,13 +40,32 @@ export interface AppServerThreadStartDraft {
   };
 }
 
+export interface AppServerThreadStartResponse {
+  thread: {
+    id: string;
+    cwd: string;
+    status: string;
+  };
+  model: string;
+  modelProvider: string;
+  cwd: string;
+}
+
 export interface AppServerTurnStartDraft {
   method: typeof APP_SERVER_PROTOCOL_METHODS.turnStart;
   params: {
     threadId: string;
-    input: Array<{ text: string }>;
+    input: Array<{ type: "text"; text: string; text_elements: [] }>;
     cwd: string;
     approvalPolicy: "never";
+  };
+}
+
+export interface AppServerTurnStartResponse {
+  turn: {
+    id: string;
+    status: string;
+    error: unknown;
   };
 }
 
@@ -94,7 +113,7 @@ export function buildTurnStartDraft(request: SidecarRequest, threadId: string): 
     method: APP_SERVER_PROTOCOL_METHODS.turnStart,
     params: {
       threadId,
-      input: [{ text: request.prompt ?? "" }],
+      input: [{ type: "text", text: request.prompt ?? "", text_elements: [] }],
       cwd: request.projectRoot,
       approvalPolicy: "never",
     },

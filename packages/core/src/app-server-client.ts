@@ -1,6 +1,14 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { once } from "node:events";
-import { buildAppServerCommand, buildInitializeDraft } from "./app-server.js";
+import {
+  buildAppServerCommand,
+  buildInitializeDraft,
+  buildThreadStartDraft,
+  buildTurnStartDraft,
+  type AppServerThreadStartResponse,
+  type AppServerTurnStartResponse,
+} from "./app-server.js";
+import type { SidecarRequest } from "./types.js";
 
 export type AppServerRequestId = string | number;
 
@@ -138,6 +146,16 @@ export class AppServerClient {
   async initialize(version = "0.0.0"): Promise<AppServerInitializeResult> {
     const draft = buildInitializeDraft(version);
     return this.request<AppServerInitializeResult>(draft.method, draft.params);
+  }
+
+  async startThread(request: SidecarRequest): Promise<AppServerThreadStartResponse> {
+    const draft = buildThreadStartDraft(request);
+    return this.request<AppServerThreadStartResponse>(draft.method, draft.params);
+  }
+
+  async startTurn(request: SidecarRequest, threadId: string): Promise<AppServerTurnStartResponse> {
+    const draft = buildTurnStartDraft(request, threadId);
+    return this.request<AppServerTurnStartResponse>(draft.method, draft.params);
   }
 
   request<T = unknown>(method: string, params?: unknown): Promise<T> {

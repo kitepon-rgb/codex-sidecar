@@ -486,13 +486,14 @@ Exit criteria:
 
 Status: transport foundation started. App Server command, generated protocol
 method names, newline-delimited stdio framing, request encoding, response
-parsing, and initialize handshake are implemented in `packages/core`.
+parsing, initialize handshake, and typed thread/turn request helpers are
+implemented in `packages/core`.
 
 Tasks:
 
 - process lifecycle: started
 - initialize handshake: started
-- session creation
+- session creation: request helper started and local `thread/start` smoke passed
 - request/event protocol adapter
 - cancellation/timeout handling
 - raw event logging

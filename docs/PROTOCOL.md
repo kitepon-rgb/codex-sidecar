@@ -48,11 +48,15 @@ Observed response shape:
 {"method":"remoteControl/status/changed","params":{"status":"disabled","environmentId":null}}
 ```
 
+- `thread/start` succeeds after initialize with `approvalPolicy: "never"` and
+  `sandbox: "read-only"` for read-only sidecar requests. A local smoke returned
+  a thread id, cwd, and `approvalPolicy: "never"` without starting a model turn.
+
 `packages/core` now owns the minimal stdio client, line parser, request encoder,
-and initialize handshake. Until thread/turn event normalization is implemented,
-real sidecar execution must still return a structured
-`APP_SERVER_UNIMPLEMENTED` result instead of silently falling back to another
-Codex command.
+initialize handshake, and typed helpers for `thread/start` and `turn/start`.
+Until thread/turn event normalization is implemented, real sidecar execution
+must still return a structured `APP_SERVER_UNIMPLEMENTED` result instead of
+silently falling back to another Codex command.
 
 ## Expected Flow
 

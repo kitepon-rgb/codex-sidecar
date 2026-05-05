@@ -3,9 +3,27 @@ import test from "node:test";
 import {
   AppServerProtocolError,
   buildInitializeDraft,
+  buildThreadStartDraft,
+  buildTurnStartDraft,
   encodeAppServerMessage,
   parseAppServerLine,
+  type SidecarRequest,
 } from "./index.js";
+
+const sampleRequest: SidecarRequest = {
+  workflow: "review",
+  projectRoot: "/repo",
+  prompt: "Review this diff.",
+  readonly: true,
+  requireWorktree: false,
+  focus: [],
+  allowedPaths: [],
+  denyPaths: [],
+  safetyProfile: "generic",
+  resultFormat: "json",
+  context: [],
+  dryRun: false,
+};
 
 test("encodeAppServerMessage writes one JSON object per line", () => {
   assert.equal(encodeAppServerMessage({ id: 1, method: "initialize", params: { ok: true } }), '{"id":1,"method":"initialize","params":{"ok":true}}\n');
@@ -24,6 +42,33 @@ test("buildInitializeDraft opts into experimental app-server API", () => {
         experimentalApi: true,
         optOutNotificationMethods: [],
       },
+    },
+  });
+});
+
+test("buildThreadStartDraft uses strict sidecar defaults", () => {
+  assert.deepEqual(buildThreadStartDraft(sampleRequest), {
+    method: "thread/start",
+    params: {
+      cwd: "/repo",
+      approvalPolicy: "never",
+      sandbox: "read-only",
+      serviceName: "codex-sidecar",
+      ephemeral: true,
+      experimentalRawEvents: false,
+      persistExtendedHistory: false,
+    },
+  });
+});
+
+test("buildTurnStartDraft encodes text input with generated protocol shape", () => {
+  assert.deepEqual(buildTurnStartDraft(sampleRequest, "thread-1"), {
+    method: "turn/start",
+    params: {
+      threadId: "thread-1",
+      input: [{ type: "text", text: "Review this diff.", text_elements: [] }],
+      cwd: "/repo",
+      approvalPolicy: "never",
     },
   });
 });
