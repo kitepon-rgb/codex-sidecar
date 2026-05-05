@@ -136,11 +136,29 @@ Availability policy:
 
 | Codex availability | Behavior |
 |---|---|
-| Codex sidecar configured and healthy | Use it for the approved independent sidecar tasks |
-| Codex unavailable, unconfigured, or failing health checks | Keep the existing Claude subagent path |
-| Codex explicitly disabled | Keep the existing Claude subagent path |
+| `unavailable` | `codex-sidecar` is not present, not executable, not configured for this repo, or fails diagnostics. Keep the existing Claude subagent path |
+| `configured` | `codex-sidecar diagnostics --project <repo>` succeeds. It is safe to use request shaping, dry-runs, docs, and planned read-only integration |
+| `operational` | A read-only smoke such as `codex_explore` succeeds. Use it for approved review, explore, opinion, and risk-check sidecar tasks |
+| `work-capable` | `codex_work` smoke succeeds and allowed paths are configured. Use worktree-backed scoped edits |
+| explicitly disabled | Keep the existing Claude subagent path |
 
 This is not a hidden fallback to a different behavior. It is the compatibility mode: the current Claude-backed behavior remains the baseline when Codex cannot be used.
+
+The minimum practical definition of "Codex is available" is not merely that a `codex` binary exists. It is that `codex-sidecar` exists and can successfully run diagnostics for the target repository. If `codex-sidecar` is absent, Spotter must treat Codex as unavailable.
+
+Preferred health check:
+
+```bash
+codex-sidecar diagnostics --project <repo> --preset review
+```
+
+Development-path health check:
+
+```bash
+node /home/kite/projects/codex-sidecar/packages/cli/dist/index.js diagnostics \
+  --project <repo> \
+  --preset review
+```
 
 ## Implementation Checklist
 
@@ -151,7 +169,7 @@ This is not a hidden fallback to a different behavior. It is the compatibility m
 - Add fixture snapshots for Codex context blocks and `SidecarResult` consumption.
 - Add docs for Claude primary, Codex primary, and automation modes.
 - Add execution policy to prevent unnecessary Codex-on-Codex recursion.
-- Add a Codex availability check before shifting any background Claude subagent task.
+- Add a Codex availability check before shifting any background Claude subagent task: absent sidecar or failed diagnostics means Claude subagent compatibility mode.
 - Add a `codex-sidecar` read-only smoke, ideally `codex_risk_check`.
 
 ## Done Definition
