@@ -25,13 +25,13 @@ to make Codex useful as a controlled companion process inside real repositories.
 Install the CLI globally:
 
 ```bash
-npm install -g @codex-sidecar/cli
+npm install -g codex-sidecar-cli
 ```
 
 Install the MCP stdio server globally when a client wants a command on PATH:
 
 ```bash
-npm install -g @codex-sidecar/mcp
+npm install -g codex-sidecar-mcp
 ```
 
 Build from source:

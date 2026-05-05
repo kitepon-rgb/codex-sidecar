@@ -1,5 +1,5 @@
 {
-  "name": "@codex-sidecar/core",
+  "name": "codex-sidecar-core",
   "version": "0.2.0",
   "private": false,
   "license": "MIT",

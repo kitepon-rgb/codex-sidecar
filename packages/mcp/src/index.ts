@@ -13,7 +13,7 @@ import {
   type SidecarError,
   type SidecarResult,
   type SidecarWorkflow,
-} from "@codex-sidecar/core";
+} from "codex-sidecar-core";
 
 export const TOOL_NAMES = [
   "codex_review",

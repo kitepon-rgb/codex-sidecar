@@ -13,13 +13,13 @@ runs Codex App Server inside an isolated git worktree.
 Install the CLI globally:
 
 ```bash
-npm install -g @codex-sidecar/cli
+npm install -g codex-sidecar-cli
 ```
 
 Install the MCP stdio server globally when a client should launch it by command:
 
 ```bash
-npm install -g @codex-sidecar/mcp
+npm install -g codex-sidecar-mcp
 ```
 
 From this repository:

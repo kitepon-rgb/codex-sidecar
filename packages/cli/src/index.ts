@@ -10,7 +10,7 @@ import {
   runSidecarRequest,
   type SidecarContextBlock,
   type SidecarWorkflow,
-} from "@codex-sidecar/core";
+} from "codex-sidecar-core";
 
 interface CliOptions {
   workflow?: CliCommand;

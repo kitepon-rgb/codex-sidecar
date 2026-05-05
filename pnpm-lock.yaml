@@ -17,7 +17,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@codex-sidecar/core':
+      codex-sidecar-core:
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -40,12 +40,12 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@codex-sidecar/core':
-        specifier: workspace:*
-        version: link:../core
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
+      codex-sidecar-core:
+        specifier: workspace:*
+        version: link:../core
       zod:
         specifier: ^4.4.3
         version: 4.4.3

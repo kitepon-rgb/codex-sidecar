@@ -20,8 +20,8 @@ OpenAI API gateway でも画像生成 proxy でもありません。Codex App Se
 workspace を build:
 
 ```bash
-npm install -g @codex-sidecar/cli
-npm install -g @codex-sidecar/mcp
+npm install -g codex-sidecar-cli
+npm install -g codex-sidecar-mcp
 ```
 
 source から build する場合:

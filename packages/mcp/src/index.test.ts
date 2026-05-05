@@ -4,7 +4,7 @@ import {
   handleCodexSidecarToolCall,
   toolDescriptors,
 } from "./index.js";
-import type { RequestInput, SidecarConfig, SidecarResult } from "@codex-sidecar/core";
+import type { RequestInput, SidecarConfig, SidecarResult } from "codex-sidecar-core";
 
 const config: SidecarConfig = {
   project: "test",

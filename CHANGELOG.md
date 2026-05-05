@@ -3,7 +3,7 @@
 ## [0.2.0] — 2026-05-05
 
 ### Added
-- Public npm package metadata for @codex-sidecar/core, @codex-sidecar/cli, and @codex-sidecar/mcp.
+- Public npm package metadata for codex-sidecar-core, codex-sidecar-cli, and codex-sidecar-mcp.
 - Global install documentation for the codex-sidecar CLI and codex-sidecar-mcp stdio server.
 - Real MCP stdio server entrypoint and Caveat-compatible context input support.
 

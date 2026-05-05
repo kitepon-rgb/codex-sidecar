@@ -7,9 +7,9 @@
   "type": "module",
   "scripts": {
     "build": "corepack pnpm -r build",
-    "typecheck": "corepack pnpm --filter @codex-sidecar/core build && corepack pnpm -r typecheck",
+    "typecheck": "corepack pnpm --filter codex-sidecar-core build && corepack pnpm -r typecheck",
     "lint": "corepack pnpm -r lint",
-    "test": "corepack pnpm --filter @codex-sidecar/core test && corepack pnpm --filter @codex-sidecar/mcp test"
+    "test": "corepack pnpm --filter codex-sidecar-core test && corepack pnpm --filter codex-sidecar-mcp test"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
