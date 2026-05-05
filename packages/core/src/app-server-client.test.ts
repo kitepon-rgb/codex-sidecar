@@ -5,7 +5,10 @@ import {
   buildInitializeDraft,
   buildThreadStartDraft,
   buildTurnStartDraft,
+  collectAgentMessageText,
   encodeAppServerMessage,
+  findTurnCompletion,
+  hasTurnCompleted,
   parseAppServerLine,
   type SidecarRequest,
 } from "./index.js";
@@ -104,4 +107,56 @@ test("parseAppServerLine parses server notification", () => {
 
 test("parseAppServerLine rejects invalid framing explicitly", () => {
   assert.throws(() => parseAppServerLine("Content-Length: 123"), AppServerProtocolError);
+});
+
+test("collectAgentMessageText concatenates matching deltas", () => {
+  assert.equal(
+    collectAgentMessageText(
+      [
+        {
+          kind: "notification",
+          method: "item/agentMessage/delta",
+          params: { threadId: "t1", turnId: "u1", itemId: "i1", delta: "hello " },
+        },
+        {
+          kind: "notification",
+          method: "item/agentMessage/delta",
+          params: { threadId: "t1", turnId: "u1", itemId: "i1", delta: "world" },
+        },
+        {
+          kind: "notification",
+          method: "item/agentMessage/delta",
+          params: { threadId: "t2", turnId: "u2", itemId: "i2", delta: "ignored" },
+        },
+      ],
+      { threadId: "t1", turnId: "u1" },
+    ),
+    "hello world",
+  );
+});
+
+test("findTurnCompletion extracts completed turn state", () => {
+  const notifications = [
+    {
+      kind: "notification" as const,
+      method: "turn/completed",
+      params: {
+        threadId: "t1",
+        turn: {
+          id: "u1",
+          status: "completed",
+          error: null,
+        },
+      },
+    },
+  ];
+
+  assert.deepEqual(findTurnCompletion(notifications, { threadId: "t1" }), {
+    threadId: "t1",
+    turnId: "u1",
+    status: "completed",
+    error: null,
+  });
+  assert.equal(hasTurnCompleted(notifications, { threadId: "t1", turnId: "u1" }), true);
+  assert.equal(hasTurnCompleted(notifications, { threadId: "t2" }), false);
 });

@@ -494,7 +494,7 @@ Tasks:
 - process lifecycle: started
 - initialize handshake: started
 - session creation: request helper started and local `thread/start` smoke passed
-- request/event protocol adapter
+- request/event protocol adapter: notification helper started
 - cancellation/timeout handling
 - raw event logging
 - normalized completion result
