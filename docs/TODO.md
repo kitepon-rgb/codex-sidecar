@@ -23,6 +23,21 @@ This file is the durable project task list. Keep it aligned with
 | P0 | Implement worktree-backed `codex_work` execution | Open | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |
 | P2 | Add ecosystem adapters and fixture snapshots | Open | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
 
+## External Project Coordination
+
+These tasks belong to other repositories, but `codex-sidecar` work should
+actively trigger them when the integration boundary is reached.
+
+| Project | Trigger From This Repo | Required External Work | Issue |
+| --- | --- | --- | --- |
+| Throughline | When `SidecarContextBlock kind: "throughline_handoff"` needs more than read-only DB/CLI import, or when Codex sessions themselves should be captured/resumed. | Add first-class Codex session memory support in Throughline. | [Throughline #1](https://github.com/kitepon-rgb/Throughline/issues/1) |
+| Caveat | When `SidecarContextBlock kind: "caveat_entry"` needs automatic Codex prompt/error retrieval or Codex-origin record/update suggestions. | Add first-class Codex retrieval and recording support in Caveat. | [Caveat #10](https://github.com/kitepon-rgb/Caveat/issues/10) |
+
+Coordination rule: during work on [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6),
+call out explicitly whether the next step belongs in `codex-sidecar`,
+Throughline, or Caveat. Do not quietly implement cross-repo behavior in the
+wrong repository.
+
 ## Rules
 
 - Keep this file high-level; put implementation detail in linked issues or
