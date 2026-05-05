@@ -74,6 +74,8 @@ The project now has a working generic spine:
   cancellation on timeout
 - worktree-backed `codex_work` execution that preserves the active working tree
   and reports changed files for review
+- plain JSON ecosystem context adapters and fixture snapshots for generic,
+  MCP/OAuth, hook, and memory-doc repository shapes
 - local smoke coverage showing `codex_explore` can complete through the real
   App Server and return `status: "ok"`
 - local CodeGraph index initialized for this repository

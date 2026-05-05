@@ -57,10 +57,19 @@ export function buildStructuredOutputPrompt(request: SidecarRequest): string {
     `- workflow: ${request.workflow}`,
     `- focus: ${JSON.stringify(request.focus)}`,
     `- safetyProfile: ${request.safetyProfile}`,
+    contextSection(request),
     "",
     "User task:",
     taskPrompt,
   ].join("\n");
+}
+
+function contextSection(request: SidecarRequest): string {
+  if (request.context.length === 0) {
+    return "- context: []";
+  }
+
+  return `- context: ${JSON.stringify(request.context)}`;
 }
 
 export function parseStructuredSidecarOutput(request: SidecarRequest, assistantText: string): StructuredOutput {

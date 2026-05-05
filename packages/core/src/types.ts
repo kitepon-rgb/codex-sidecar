@@ -56,7 +56,7 @@ export interface SidecarConfig {
 }
 
 export interface SidecarContextBlock {
-  kind: "relay_entry" | "throughline_handoff" | "caveat_entry" | "smartclaude_cost_hint" | "manual_note";
+  kind: "relay_entry" | "throughline_handoff" | "caveat_entry" | "smartclaude_cost_hint" | "codegraph_context" | "manual_note";
   source: string;
   trust: "local" | "user-provided" | "project" | "external";
   summary: string;

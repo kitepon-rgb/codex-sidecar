@@ -137,7 +137,7 @@ Inside `packages/core/src`:
 - `app-server-runner`: read-only execution path and `SidecarResult` conversion
 - `worktree`: isolated worktree lifecycle
 - `worktree-runner`: `codex_work` execution inside an isolated git worktree
-- future `context`: optional context block adapters
+- `context`: optional plain JSON context block adapters
 - future `prompts`: workflow-specific prompt shaping / structured-output requests
 - future `diagnostics`: environment and config checks
 

@@ -1,0 +1,218 @@
+[
+  {
+    "name": "generic-explore",
+    "config": {
+      "project": "generic",
+      "defaults": { "readonly": true, "result_format": "json" },
+      "allowed_paths": ["src/", "docs/"]
+    },
+    "input": {
+      "workflow": "explore",
+      "projectRoot": "/repo/generic",
+      "prompt": "Explain the module."
+    },
+    "expected": {
+      "workflow": "explore",
+      "projectRoot": "/repo/generic",
+      "prompt": "Explain the module.",
+      "readonly": true,
+      "requireWorktree": false,
+      "focus": [],
+      "allowedPaths": ["src/", "docs/"],
+      "denyPaths": [
+        ".env",
+        ".env.*",
+        "**/.env",
+        "**/.env.*",
+        "**/*.key",
+        "**/*.pem",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/*secret*",
+        "**/*token*",
+        "**/*credential*",
+        "**/*.sqlite",
+        "**/*.sqlite3",
+        "**/*.db",
+        "**/*.db-*",
+        "**/*.sqlite-*",
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/.git/**"
+      ],
+      "safetyProfile": "generic",
+      "resultFormat": "json",
+      "turnTimeoutMs": 600000,
+      "interruptOnTimeout": true,
+      "preserveWorktree": true,
+      "context": [],
+      "dryRun": false
+    }
+  },
+  {
+    "name": "mcp-oauth-risk",
+    "config": {
+      "project": "oauth-mcp",
+      "safety_profile": "mcp-oauth-service",
+      "allowed_paths": ["server/", "docs/"]
+    },
+    "input": {
+      "workflow": "risk-check",
+      "projectRoot": "/repo/oauth",
+      "focus": ["mcp", "oauth", "secrets"]
+    },
+    "expected": {
+      "workflow": "risk-check",
+      "projectRoot": "/repo/oauth",
+      "readonly": true,
+      "requireWorktree": false,
+      "focus": ["mcp", "oauth", "secrets"],
+      "allowedPaths": ["server/", "docs/"],
+      "denyPaths": [
+        ".env",
+        ".env.*",
+        "**/.env",
+        "**/.env.*",
+        "**/*.key",
+        "**/*.pem",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/*secret*",
+        "**/*token*",
+        "**/*credential*",
+        "**/*.sqlite",
+        "**/*.sqlite3",
+        "**/*.db",
+        "**/*.db-*",
+        "**/*.sqlite-*",
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/.git/**",
+        "**/oauth*.db",
+        "**/*auth*.db",
+        "**/*refresh*token*",
+        "**/*signing*key*",
+        "**/caddy/*.local*",
+        "**/docker-compose.override.yml"
+      ],
+      "safetyProfile": "mcp-oauth-service",
+      "resultFormat": "json",
+      "turnTimeoutMs": 600000,
+      "interruptOnTimeout": true,
+      "preserveWorktree": true,
+      "context": [],
+      "dryRun": false
+    }
+  },
+  {
+    "name": "hook-work",
+    "config": {
+      "project": "hook-package",
+      "safety_profile": "claude-hook-package",
+      "allowed_paths": ["src/", "docs/"]
+    },
+    "input": {
+      "workflow": "work",
+      "projectRoot": "/repo/hook",
+      "prompt": "Make a scoped fix.",
+      "allowedPaths": ["src/hooks/"],
+      "preserveWorktree": false
+    },
+    "expected": {
+      "workflow": "work",
+      "projectRoot": "/repo/hook",
+      "prompt": "Make a scoped fix.",
+      "readonly": false,
+      "requireWorktree": true,
+      "focus": [],
+      "allowedPaths": ["src/", "docs/", "src/hooks/"],
+      "denyPaths": [
+        ".env",
+        ".env.*",
+        "**/.env",
+        "**/.env.*",
+        "**/*.key",
+        "**/*.pem",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/*secret*",
+        "**/*token*",
+        "**/*credential*",
+        "**/*.sqlite",
+        "**/*.sqlite3",
+        "**/*.db",
+        "**/*.db-*",
+        "**/*.sqlite-*",
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/.git/**",
+        ".claude/**",
+        "**/.claude/**",
+        "**/settings.json",
+        "**/*transcript*"
+      ],
+      "safetyProfile": "claude-hook-package",
+      "resultFormat": "json",
+      "turnTimeoutMs": 600000,
+      "interruptOnTimeout": true,
+      "preserveWorktree": false,
+      "context": [],
+      "dryRun": false
+    }
+  },
+  {
+    "name": "memory-docs",
+    "config": {
+      "project": "memory",
+      "safety_profile": "markdown-memory-repo",
+      "allowed_paths": ["memory/", "docs/"]
+    },
+    "input": {
+      "workflow": "review",
+      "projectRoot": "/repo/memory"
+    },
+    "expected": {
+      "workflow": "review",
+      "projectRoot": "/repo/memory",
+      "readonly": true,
+      "requireWorktree": false,
+      "focus": [],
+      "allowedPaths": ["memory/", "docs/"],
+      "denyPaths": [
+        ".env",
+        ".env.*",
+        "**/.env",
+        "**/.env.*",
+        "**/*.key",
+        "**/*.pem",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/*secret*",
+        "**/*token*",
+        "**/*credential*",
+        "**/*.sqlite",
+        "**/*.sqlite3",
+        "**/*.db",
+        "**/*.db-*",
+        "**/*.sqlite-*",
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/.git/**",
+        "**/private/**",
+        "**/*private*.md",
+        "**/.obsidian/workspace*"
+      ],
+      "safetyProfile": "markdown-memory-repo",
+      "resultFormat": "json",
+      "turnTimeoutMs": 600000,
+      "interruptOnTimeout": true,
+      "preserveWorktree": true,
+      "context": [],
+      "dryRun": false
+    }
+  }
+]

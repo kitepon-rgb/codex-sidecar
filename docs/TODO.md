@@ -5,8 +5,8 @@ This file is the durable project task list. Keep it aligned with
 
 ## Current Priority
 
-1. Add ecosystem adapters and fixture snapshots after the generic contracts are
-   stable.
+All tracked repository-local tasks are complete. Future work should start from
+new issues or from the external coordination table below.
 
 ## Active Tasks
 
@@ -17,7 +17,7 @@ This file is the durable project task list. Keep it aligned with
 | P1 | Expose timeout and cancellation controls for App Server turns | Done | [#3](https://github.com/kitepon-rgb/codex-sidecar/issues/3) |
 | P1 | Wire MCP tools to real sidecar execution | Done | [#4](https://github.com/kitepon-rgb/codex-sidecar/issues/4) |
 | P0 | Implement worktree-backed `codex_work` execution | Done | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |
-| P2 | Add ecosystem adapters and fixture snapshots | Open | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
+| P2 | Add ecosystem adapters and fixture snapshots | Done | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
 
 ## Local CodeGraph Setup
 

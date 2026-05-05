@@ -1,0 +1,30 @@
+[
+  {
+    "kind": "relay_entry",
+    "source": "relay://conversation/ios-123",
+    "summary": "User asked for a second-opinion review from mobile."
+  },
+  {
+    "kind": "throughline_handoff",
+    "source": "throughline://handoff/session-456",
+    "summary": "Previous Claude session isolated App Server protocol work.",
+    "references": [{ "path": "docs/PROTOCOL.md", "line": 1 }]
+  },
+  {
+    "kind": "caveat_entry",
+    "source": "caveat://trap/app-server-jsonl",
+    "summary": "Do not silently parse non-JSON assistant output as a fallback."
+  },
+  {
+    "kind": "smartclaude_cost_hint",
+    "source": "smartclaude://estimate/codex-sidecar",
+    "summary": "Codex call is justified when result contracts may drift.",
+    "data": { "shouldCallCodex": true, "estimatedInputTokens": 1800 }
+  },
+  {
+    "kind": "codegraph_context",
+    "source": "codegraph://local/codex-sidecar",
+    "summary": "runSidecarRequest calls the App Server runner for read-only workflows.",
+    "references": [{ "path": "packages/core/src/requests.ts", "line": 16 }]
+  }
+]

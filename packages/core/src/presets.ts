@@ -1,6 +1,14 @@
 import { getProfileDenyPatterns } from "./profiles.js";
 import { normalizePolicyPatterns } from "./paths.js";
-import { DEFAULT_TURN_TIMEOUT_MS, type ResultFormat, type SafetyProfileName, type SidecarConfig, type SidecarRequest, type SidecarWorkflow } from "./types.js";
+import {
+  DEFAULT_TURN_TIMEOUT_MS,
+  type ResultFormat,
+  type SafetyProfileName,
+  type SidecarConfig,
+  type SidecarContextBlock,
+  type SidecarRequest,
+  type SidecarWorkflow,
+} from "./types.js";
 
 export interface RequestInput {
   workflow: SidecarWorkflow;
@@ -17,6 +25,7 @@ export interface RequestInput {
   turnTimeoutMs?: number;
   interruptOnTimeout?: boolean;
   preserveWorktree?: boolean;
+  context?: SidecarContextBlock[];
   dryRun?: boolean;
 }
 
@@ -61,7 +70,7 @@ export function normalizeSidecarRequest(config: SidecarConfig, input: RequestInp
     turnTimeoutMs: normalizePositiveInteger(input.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS, "turnTimeoutMs"),
     interruptOnTimeout: input.interruptOnTimeout ?? true,
     preserveWorktree: input.preserveWorktree ?? true,
-    context: [],
+    context: input.context ?? [],
     dryRun: input.dryRun ?? false,
   };
 }

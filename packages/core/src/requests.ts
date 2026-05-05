@@ -38,7 +38,7 @@ export async function runSidecarRequest(
       turnTimeoutMs: input.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS,
       interruptOnTimeout: input.interruptOnTimeout ?? true,
       preserveWorktree: input.preserveWorktree ?? true,
-      context: [],
+      context: input.context ?? [],
       dryRun: input.dryRun ?? false,
     };
     return errorResult(errorRequest, toSidecarError(error));
