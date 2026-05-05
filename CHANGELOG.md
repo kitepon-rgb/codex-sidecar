@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] — 2026-05-05
+
+### Fixed
+- Fix codex-sidecar-mcp npm bin path so global installs expose `codex-sidecar-mcp`.
+
 ## [0.2.0] — 2026-05-05
 
 ### Added

@@ -1,13 +1,13 @@
 {
   "name": "codex-sidecar-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": false,
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "codex-sidecar-mcp": "./dist/server.js"
+    "codex-sidecar-mcp": "dist/server.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
