@@ -12,6 +12,7 @@ export interface AppServerSessionClient {
   initialize(version?: string): Promise<AppServerInitializeResult>;
   startThread(request: SidecarRequest): Promise<AppServerThreadStartResponse>;
   startTurn(request: SidecarRequest, threadId: string): Promise<AppServerTurnStartResponse>;
+  interruptTurn(threadId: string, turnId: string): Promise<unknown>;
   waitForNotification(
     predicate: (message: AppServerWireNotification) => boolean,
     timeoutMs?: number,
@@ -25,8 +26,6 @@ export interface AppServerRunOptions {
   version?: string;
   turnTimeoutMs?: number;
 }
-
-const DEFAULT_TURN_TIMEOUT_MS = 10 * 60_000;
 
 export async function runReadOnlyAppServerRequest(
   request: SidecarRequest,
@@ -53,6 +52,8 @@ export async function runReadOnlyAppServerRequest(
         projectRoot: request.projectRoot,
         readonly: request.readonly,
         resultFormat: request.resultFormat,
+        turnTimeoutMs: request.turnTimeoutMs,
+        interruptOnTimeout: request.interruptOnTimeout,
       },
     });
 
@@ -90,7 +91,7 @@ export async function runReadOnlyAppServerRequest(
       data: { threadId, turnId, status: turnResponse.turn.status },
     });
 
-    const turnTimeoutMs = options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
+    const turnTimeoutMs = options.turnTimeoutMs ?? request.turnTimeoutMs;
     logger.write({
       category: "lifecycle",
       event: "turn/wait-completion",
@@ -110,15 +111,23 @@ export async function runReadOnlyAppServerRequest(
           threadId,
           turnId,
           turnTimeoutMs,
+          interruptOnTimeout: request.interruptOnTimeout,
           message: error instanceof Error ? error.message : String(error),
         },
       });
-      throw error;
+      if (request.interruptOnTimeout) {
+        await interruptTurnAfterTimeout(client, logger, threadId, turnId);
+      }
+      throw new Error(`APP_SERVER_TIMEOUT: App Server turn timed out after ${turnTimeoutMs}ms for thread=${threadId} turn=${turnId}`);
     }
 
     const completion = findTurnCompletion(client.notifications, filter);
     if (!completion) {
       throw new Error(`PROTOCOL_ERROR: turn/completed notification was not retained for thread=${threadId} turn=${turnId}`);
+    }
+
+    if (completion.status === "interrupted") {
+      throw new Error(`APP_SERVER_CANCELLED: App Server turn was interrupted for thread=${threadId} turn=${turnId}`);
     }
 
     if (completion.status !== "completed") {
@@ -187,6 +196,38 @@ function writeRetainedClientDiagnostics(logger: AppServerEventLogger, client: Ap
       event: "notification/retained",
       direction: "inbound",
       data: notification,
+    });
+  }
+}
+
+async function interruptTurnAfterTimeout(
+  client: AppServerSessionClient,
+  logger: AppServerEventLogger,
+  threadId: string,
+  turnId: string,
+): Promise<void> {
+  logger.write({
+    category: "lifecycle",
+    event: "turn/interrupt/start",
+    data: { threadId, turnId },
+  });
+
+  try {
+    await client.interruptTurn(threadId, turnId);
+    logger.write({
+      category: "lifecycle",
+      event: "turn/interrupt/complete",
+      data: { threadId, turnId },
+    });
+  } catch (error) {
+    logger.write({
+      category: "diagnostic",
+      event: "turn/interrupt/error",
+      data: {
+        threadId,
+        turnId,
+        message: error instanceof Error ? error.message : String(error),
+      },
     });
   }
 }

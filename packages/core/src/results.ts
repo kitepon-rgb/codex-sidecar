@@ -55,7 +55,11 @@ export function toSidecarError(error: unknown): SidecarError {
           ? "SAFETY_REFUSAL"
           : message.startsWith("APP_SERVER_UNIMPLEMENTED:")
             ? "APP_SERVER_UNIMPLEMENTED"
-            : "PROTOCOL_ERROR";
+            : message.startsWith("APP_SERVER_TIMEOUT:")
+              ? "APP_SERVER_TIMEOUT"
+              : message.startsWith("APP_SERVER_CANCELLED:")
+                ? "APP_SERVER_CANCELLED"
+                : "PROTOCOL_ERROR";
 
   return {
     code,

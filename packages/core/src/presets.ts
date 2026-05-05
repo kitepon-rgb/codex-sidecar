@@ -1,6 +1,6 @@
 import { getProfileDenyPatterns } from "./profiles.js";
 import { normalizePolicyPatterns } from "./paths.js";
-import type { ResultFormat, SafetyProfileName, SidecarConfig, SidecarRequest, SidecarWorkflow } from "./types.js";
+import { DEFAULT_TURN_TIMEOUT_MS, type ResultFormat, type SafetyProfileName, type SidecarConfig, type SidecarRequest, type SidecarWorkflow } from "./types.js";
 
 export interface RequestInput {
   workflow: SidecarWorkflow;
@@ -14,6 +14,8 @@ export interface RequestInput {
   denyPaths?: string[];
   safetyProfile?: SafetyProfileName;
   resultFormat?: ResultFormat;
+  turnTimeoutMs?: number;
+  interruptOnTimeout?: boolean;
   dryRun?: boolean;
 }
 
@@ -55,6 +57,8 @@ export function normalizeSidecarRequest(config: SidecarConfig, input: RequestInp
     denyPaths: normalizePolicyPatterns(configuredDenyPaths),
     safetyProfile,
     resultFormat: input.resultFormat ?? config.defaults?.result_format ?? "json",
+    turnTimeoutMs: normalizePositiveInteger(input.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS, "turnTimeoutMs"),
+    interruptOnTimeout: input.interruptOnTimeout ?? true,
     context: [],
     dryRun: input.dryRun ?? false,
   };
@@ -62,4 +66,12 @@ export function normalizeSidecarRequest(config: SidecarConfig, input: RequestInp
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function normalizePositiveInteger(value: number, label: string): number {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`CONFIG_INVALID: ${label} must be a positive integer`);
+  }
+
+  return value;
 }

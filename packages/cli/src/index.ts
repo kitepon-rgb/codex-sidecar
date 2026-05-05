@@ -17,6 +17,8 @@ interface CliOptions {
   prompt?: string;
   json: boolean;
   dryRun: boolean;
+  turnTimeoutMs?: number;
+  interruptOnTimeout: boolean;
 }
 
 type CliCommand = SidecarWorkflow | "diagnostics";
@@ -40,6 +42,8 @@ try {
       projectRoot: parsed.projectRoot,
       preset: resolvedPreset,
       prompt: parsed.prompt,
+      turnTimeoutMs: parsed.turnTimeoutMs,
+      interruptOnTimeout: parsed.interruptOnTimeout,
       dryRun: true,
     });
 
@@ -57,6 +61,8 @@ try {
     projectRoot: parsed.projectRoot,
     preset: resolvedPreset,
     prompt: parsed.prompt,
+    turnTimeoutMs: parsed.turnTimeoutMs,
+    interruptOnTimeout: parsed.interruptOnTimeout,
     dryRun: parsed.dryRun,
   });
 
@@ -76,6 +82,7 @@ function parseArgs(args: string[]): CliOptions {
     configFile: CONFIG_FILE,
     json: true,
     dryRun: false,
+    interruptOnTimeout: true,
   };
   const promptParts: string[] = [];
 
@@ -104,6 +111,16 @@ function parseArgs(args: string[]): CliOptions {
 
     if (arg === "--dry-run") {
       options.dryRun = true;
+      continue;
+    }
+
+    if (arg === "--turn-timeout-ms") {
+      options.turnTimeoutMs = parsePositiveInteger(requireValue(args, (index += 1), "--turn-timeout-ms"), "--turn-timeout-ms");
+      continue;
+    }
+
+    if (arg === "--no-interrupt-on-timeout") {
+      options.interruptOnTimeout = false;
       continue;
     }
 
@@ -137,9 +154,19 @@ function requireValue(args: string[], index: number, option: string): string {
   return value;
 }
 
+function parsePositiveInteger(value: string, option: string): number {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${option} must be a positive integer`);
+  }
+
+  return parsed;
+}
+
 function printUsage(): void {
   console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics> [options] [prompt]`);
-  console.error("Options: --project <dir> --config <file> --preset <name> --dry-run --json");
+  console.error("Options: --project <dir> --config <file> --preset <name> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout");
 }
 
 function printJson(value: unknown): void {

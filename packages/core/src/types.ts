@@ -1,5 +1,7 @@
 export const WORKFLOWS = ["review", "explore", "work", "opinion", "risk-check"] as const;
 
+export const DEFAULT_TURN_TIMEOUT_MS = 10 * 60_000;
+
 export type SidecarWorkflow = (typeof WORKFLOWS)[number];
 
 export type SidecarRole = "reviewer" | "explorer" | "worker" | "critic" | "risk-analyst";
@@ -80,6 +82,8 @@ export interface SidecarRequest {
   denyPaths: string[];
   safetyProfile: SafetyProfileName;
   resultFormat: ResultFormat;
+  turnTimeoutMs: number;
+  interruptOnTimeout: boolean;
   context: SidecarContextBlock[];
   dryRun: boolean;
 }
@@ -91,6 +95,8 @@ export interface SidecarError {
     | "PRESET_NOT_FOUND"
     | "SAFETY_REFUSAL"
     | "APP_SERVER_UNIMPLEMENTED"
+    | "APP_SERVER_TIMEOUT"
+    | "APP_SERVER_CANCELLED"
     | "PROTOCOL_ERROR"
     | "WORKTREE_ERROR";
   message: string;

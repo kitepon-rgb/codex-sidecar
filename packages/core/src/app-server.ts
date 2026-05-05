@@ -5,6 +5,7 @@ export const APP_SERVER_PROTOCOL_METHODS = {
   initialize: "initialize",
   threadStart: "thread/start",
   turnStart: "turn/start",
+  turnInterrupt: "turn/interrupt",
   reviewStart: "review/start",
 } as const;
 
@@ -70,6 +71,14 @@ export interface AppServerTurnStartResponse {
   };
 }
 
+export interface AppServerTurnInterruptDraft {
+  method: typeof APP_SERVER_PROTOCOL_METHODS.turnInterrupt;
+  params: {
+    threadId: string;
+    turnId: string;
+  };
+}
+
 export function buildAppServerCommand(listen = "stdio://"): AppServerCommand {
   return {
     command: "codex",
@@ -117,6 +126,16 @@ export function buildTurnStartDraft(request: SidecarRequest, threadId: string): 
       input: [{ type: "text", text: buildStructuredOutputPrompt(request), text_elements: [] }],
       cwd: request.projectRoot,
       approvalPolicy: "never",
+    },
+  };
+}
+
+export function buildTurnInterruptDraft(threadId: string, turnId: string): AppServerTurnInterruptDraft {
+  return {
+    method: APP_SERVER_PROTOCOL_METHODS.turnInterrupt,
+    params: {
+      threadId,
+      turnId,
     },
   };
 }

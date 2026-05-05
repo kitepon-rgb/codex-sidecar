@@ -148,6 +148,21 @@ timeouts, process exits, and protocol errors. The default log directory is
 git-ignored because entries can contain prompts, file paths, and raw local
 diagnostics.
 
+## Timeout And Interruption
+
+`SidecarRequest.turnTimeoutMs` is the caller-selected App Server turn timeout in
+milliseconds. It is visible in diagnostics output and raw event logs.
+
+`SidecarRequest.interruptOnTimeout` controls timeout cancellation behavior. When
+it is `true`, the adapter sends `turn/interrupt` with the active `threadId` and
+`turnId` after the completion wait times out. The timeout result is returned as
+`APP_SERVER_TIMEOUT`. If App Server reports a completed turn with status
+`interrupted`, the adapter returns `APP_SERVER_CANCELLED`.
+
+CLI callers can set these with `--turn-timeout-ms <ms>` and
+`--no-interrupt-on-timeout`. MCP tool descriptors expose the same fields as
+`turnTimeoutMs` and `interruptOnTimeout`.
+
 The following are adapter details and may change with App Server versions:
 
 - process startup flags

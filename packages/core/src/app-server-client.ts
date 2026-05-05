@@ -4,6 +4,7 @@ import {
   buildAppServerCommand,
   buildInitializeDraft,
   buildThreadStartDraft,
+  buildTurnInterruptDraft,
   buildTurnStartDraft,
   type AppServerThreadStartResponse,
   type AppServerTurnStartResponse,
@@ -201,6 +202,11 @@ export class AppServerClient {
   async startTurn(request: SidecarRequest, threadId: string): Promise<AppServerTurnStartResponse> {
     const draft = buildTurnStartDraft(request, threadId);
     return this.request<AppServerTurnStartResponse>(draft.method, draft.params);
+  }
+
+  async interruptTurn(threadId: string, turnId: string): Promise<Record<string, never>> {
+    const draft = buildTurnInterruptDraft(threadId, turnId);
+    return this.request<Record<string, never>>(draft.method, draft.params);
   }
 
   request<T = unknown>(method: string, params?: unknown): Promise<T> {

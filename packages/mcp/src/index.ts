@@ -41,6 +41,15 @@ const commonProperties = {
     type: "boolean",
     description: "Normalize and safety-check the request without calling Codex.",
   },
+  turnTimeoutMs: {
+    type: "integer",
+    minimum: 1,
+    description: "Maximum milliseconds to wait for the App Server turn to complete.",
+  },
+  interruptOnTimeout: {
+    type: "boolean",
+    description: "Whether to send App Server turn/interrupt when the turn timeout is reached.",
+  },
 } as const;
 
 export const toolDescriptors: McpToolDescriptor[] = [

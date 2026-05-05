@@ -13,6 +13,8 @@ const baseRequest: SidecarRequest = {
   denyPaths: [],
   safetyProfile: "generic",
   resultFormat: "json",
+  turnTimeoutMs: 600_000,
+  interruptOnTimeout: true,
   context: [],
   dryRun: false,
 };

@@ -2,7 +2,7 @@ import { runReadOnlyAppServerRequest } from "./app-server-runner.js";
 import { normalizeSidecarRequest, type RequestInput } from "./presets.js";
 import { dryRunResult, errorResult, toSidecarError, unimplementedResult } from "./results.js";
 import { validateRequestSafety } from "./safety.js";
-import type { SidecarConfig, SidecarRequest, SidecarResult } from "./types.js";
+import { DEFAULT_TURN_TIMEOUT_MS, type SidecarConfig, type SidecarRequest, type SidecarResult } from "./types.js";
 
 export type { RequestInput } from "./presets.js";
 export type { SidecarRequest, SidecarWorkflow } from "./types.js";
@@ -34,6 +34,8 @@ export async function runSidecarRequest(
       denyPaths: input.denyPaths ?? [],
       safetyProfile: input.safetyProfile ?? "generic",
       resultFormat: input.resultFormat ?? "json",
+      turnTimeoutMs: input.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS,
+      interruptOnTimeout: input.interruptOnTimeout ?? true,
       context: [],
       dryRun: input.dryRun ?? false,
     };

@@ -70,6 +70,8 @@ The project now has a working generic spine:
 - structured read-only result normalization for review, explore, opinion, and
   risk-check workflows
 - raw App Server JSONL event logs with inspectable `rawEventLogRef` artifacts
+- caller-selected turn timeouts with optional App Server `turn/interrupt`
+  cancellation on timeout
 - local smoke coverage showing `codex_explore` can complete through the real
   App Server and return `status: "ok"`
 - local CodeGraph index initialized for this repository

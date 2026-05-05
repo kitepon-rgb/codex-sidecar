@@ -4,6 +4,7 @@ import {
   AppServerProtocolError,
   buildInitializeDraft,
   buildThreadStartDraft,
+  buildTurnInterruptDraft,
   buildTurnStartDraft,
   buildStructuredOutputPrompt,
   collectAgentMessageText,
@@ -25,6 +26,8 @@ const sampleRequest: SidecarRequest = {
   denyPaths: [],
   safetyProfile: "generic",
   resultFormat: "json",
+  turnTimeoutMs: 600_000,
+  interruptOnTimeout: true,
   context: [],
   dryRun: false,
 };
@@ -79,6 +82,16 @@ test("buildTurnStartDraft encodes structured-output text input with generated pr
   });
   assert.match(draft.params.input[0].text, /Return exactly one JSON object/);
   assert.match(draft.params.input[0].text, /findings/);
+});
+
+test("buildTurnInterruptDraft encodes turn interrupt request", () => {
+  assert.deepEqual(buildTurnInterruptDraft("thread-1", "turn-1"), {
+    method: "turn/interrupt",
+    params: {
+      threadId: "thread-1",
+      turnId: "turn-1",
+    },
+  });
 });
 
 test("parseAppServerLine parses initialize response", () => {

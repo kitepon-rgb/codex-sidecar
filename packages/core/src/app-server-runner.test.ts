@@ -16,6 +16,8 @@ const request: SidecarRequest = {
   denyPaths: [],
   safetyProfile: "generic",
   resultFormat: "json",
+  turnTimeoutMs: 600_000,
+  interruptOnTimeout: true,
   context: [],
   dryRun: false,
 };
@@ -170,15 +172,35 @@ test("runReadOnlyAppServerRequest retains log diagnostics when turn completion w
   const eventLogDir = await makeTempLogDir();
   const client = new FakeAppServerClient([]);
 
-  const result = await runReadOnlyAppServerRequest(request, { client, eventLogDir, turnTimeoutMs: 25 });
+  const result = await runReadOnlyAppServerRequest({ ...request, turnTimeoutMs: 25 }, { client, eventLogDir });
 
   assert.equal(result.status, "failed");
-  assert.equal(result.error?.code, "PROTOCOL_ERROR");
+  assert.equal(result.error?.code, "APP_SERVER_TIMEOUT");
   assert.ok(result.rawEventLogRef?.startsWith(eventLogDir));
+  assert.equal(client.interruptedTurns.length, 1);
+  assert.equal(result.normalizedRequest?.turnTimeoutMs, 25);
 
   const log = await readJsonlLog(result.rawEventLogRef);
   assert.ok(log.some((entry) => entry.event === "turn/wait-completion"));
   assert.ok(log.some((entry) => entry.event === "turn/timeout-or-wait-error"));
+  assert.ok(log.some((entry) => entry.event === "turn/interrupt/complete"));
+
+  await rm(eventLogDir, { recursive: true, force: true });
+});
+
+test("runReadOnlyAppServerRequest can leave timed-out turns uninterrupted when requested", async () => {
+  const eventLogDir = await makeTempLogDir();
+  const client = new FakeAppServerClient([]);
+
+  const result = await runReadOnlyAppServerRequest(
+    { ...request, turnTimeoutMs: 25, interruptOnTimeout: false },
+    { client, eventLogDir },
+  );
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.error?.code, "APP_SERVER_TIMEOUT");
+  assert.equal(client.interruptedTurns.length, 0);
+  assert.equal(result.normalizedRequest?.interruptOnTimeout, false);
 
   await rm(eventLogDir, { recursive: true, force: true });
 });
@@ -216,6 +238,7 @@ async function readJsonlLog(path: string | undefined): Promise<Array<Record<stri
 class FakeAppServerClient implements AppServerSessionClient {
   readonly stderr = "";
   readonly notifications: AppServerWireNotification[] = [];
+  readonly interruptedTurns: Array<{ threadId: string; turnId: string }> = [];
   closed = false;
 
   constructor(private readonly queuedNotifications: AppServerWireNotification[]) {}
@@ -250,6 +273,11 @@ class FakeAppServerClient implements AppServerSessionClient {
         error: null,
       },
     };
+  }
+
+  async interruptTurn(threadId: string, turnId: string) {
+    this.interruptedTurns.push({ threadId, turnId });
+    return {};
   }
 
   async waitForNotification(predicate: (message: AppServerWireNotification) => boolean) {
