@@ -27,6 +27,8 @@ field rather than the only output.
 - Throughline can provide compressed session context and handoff memos.
 - Caveat can provide trap memories and repo-specific gotchas.
 - SmartClaude can decide whether a Codex call is worth the context/cost.
+- CodeGraph can provide local symbol graph context when a consuming repository
+  has `.codegraph/` initialized.
 - image-generator contributes OAuth/MCP hub deployment patterns.
 - IP-MCP contributes source-boundary discipline and no-hidden-fallback rules.
 
@@ -55,7 +57,7 @@ This layer must be useful for any repository:
 This layer adds defaults and optional context for kitepon-rgb projects:
 
 - safety profiles for MCP/OAuth/hooks/Docker/memory repos
-- context adapters for Relay, Throughline, Caveat, and SmartClaude
+- context adapters for Relay, Throughline, Caveat, SmartClaude, and CodeGraph
 - risk presets for source boundaries, token stores, hooks, and public endpoints
 - fixture projects that mirror the user's recurring repo shapes
 
@@ -75,7 +77,10 @@ Owns shared behavior:
 - prompt shaping
 - ecosystem context adapters
 - Codex App Server process lifecycle
-- session/event normalization
+- stdio JSON-line protocol handling
+- initialize / thread / turn request handling
+- read-only turn completion waiting and assistant text normalization
+- session/event normalization for richer result fields
 - worktree isolation for write operations
 - result schemas and JSON contract normalization
 - diagnostics and raw event log references
@@ -93,7 +98,11 @@ Provides local commands:
 The CLI should stay thin and delegate policy decisions to `core`.
 
 The CLI is also the generic user-facing entrypoint. It should not require Relay,
-Throughline, Caveat, SmartClaude, or any other ecosystem project.
+Throughline, Caveat, SmartClaude, CodeGraph, or any other ecosystem project.
+
+Read-only workflows currently call Codex App Server through `core`. Write
+workflows still return a structured `APP_SERVER_UNIMPLEMENTED` result until
+worktree-backed execution is complete.
 
 ### `packages/mcp`
 
@@ -106,7 +115,8 @@ Provides an MCP server for Claude Code:
 - `codex_risk_check`
 
 The MCP layer should expose stable tool schemas and translate calls into the
-same `core` request types used by the CLI.
+same `core` request types used by the CLI. It is currently at descriptor/schema
+scaffold stage; wiring to real execution is tracked separately.
 
 Read-only tools should be easy to call. Write-capable tools must require an
 explicit project config and must surface safety refusals as structured errors.
@@ -121,11 +131,14 @@ Inside `packages/core/src`:
 - `paths`: glob matching, path normalization, traversal defense
 - `profiles`: generic and ecosystem safety profiles
 - `results`: JSON schemas and result builders
-- `context`: optional context block contracts
-- `prompts`: workflow-specific prompt shaping
-- `app-server`: Codex App Server process/session adapter
+- `app-server`: request builders for Codex App Server methods
+- `app-server-client`: stdio process client, JSON-line parser, requests, notifications
+- `app-server-events`: notification helpers for turn completion and assistant text
+- `app-server-runner`: read-only execution path and `SidecarResult` conversion
 - `worktree`: isolated worktree lifecycle
-- `diagnostics`: environment and config checks
+- future `context`: optional context block adapters
+- future `prompts`: workflow-specific prompt shaping / structured-output requests
+- future `diagnostics`: environment and config checks
 
 ## Safety Model
 
@@ -146,6 +159,11 @@ No hidden fallback rule: if a requested source, protocol, transport, or tool pat
 fails, return an explicit error. Do not silently substitute another source or
 implementation path, especially where official/unofficial data boundaries,
 secrets, auth, deploy, or CI behavior are involved.
+
+Codex global CodeGraph is available as an MCP server named `codegraph`, but each
+project must still be initialized with `.codegraph/` before graph queries are
+valid. CodeGraph output is useful for exploration, but edits and final claims
+still need direct file verification.
 
 ## Result Contract
 
@@ -190,4 +208,5 @@ Avoid:
 - [../README.md](../README.md): project overview and repository layout.
 - [../AGENTS.md](../AGENTS.md): working instructions for Codex and future agents.
 - [PLAN.md](PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
+- [TODO.md](TODO.md): durable task list and linked GitHub issues.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.

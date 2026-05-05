@@ -12,7 +12,7 @@
 として安全に呼び出すための共通実行レイヤー。
 
 単なる `codex review` CLI ではなく、Relay / Throughline / Caveat /
-SmartClaude / image-generator / IP-MCP などの既存プロジェクトと並ぶ
+SmartClaude / CodeGraph / image-generator / IP-MCP などの既存プロジェクトと並ぶ
 「AI 作業OS」の部品として設計する。Claude Code が主で動く環境に、
 Codex の別視点、反対意見、レビュー、調査、限定的な修正能力を差し込む。
 
@@ -51,8 +51,8 @@ context adapter とする。
 - `packages/core/`: config loading, safety policy, App Server/session handling,
   worktree isolation, normalized results
 - `packages/cli/`: `codex-sidecar review|explore|work|opinion|risk-check`
-- `packages/mcp/`: Claude Code から呼ぶ `codex_review` / `codex_explore` /
-  `codex_work` / `codex_opinion` / `codex_risk_check`
+- `packages/mcp/`: Claude Code などの MCP client から呼ぶ `codex_review` /
+  `codex_explore` / `codex_work` / `codex_opinion` / `codex_risk_check`
 - `docs/`: 設計判断、protocol 方針、safety model
 - `examples/`: consuming repo 側に置く `.codex-sidecar.yml` の例
 
@@ -64,6 +64,7 @@ context adapter とする。
 - `Throughline`: Claude Code の transcript / tool I/O を圧縮し、明示 handoff で継承する。
 - `Caveat`: 罠、外部仕様の gotcha、repo-specific memory を markdown-in-git で保持する。
 - `SmartClaude`: Claude Code の token / context / MCP tool 定義コストを計測、最適化する。
+- `CodeGraph`: repository-local な symbol graph / semantic context を提供する。
 - `image-generator`: OAuth 2.1 + MCP hub + stdio-to-HTTP proxy の実装知見を持つ。
 - `IP-MCP`: official / unofficial source の分離、no fallback、quota-aware tool design の実例。
 
@@ -89,6 +90,7 @@ context adapter とする。
 想定コマンド:
 
 ```bash
+rtk git status --short --branch
 corepack pnpm install
 corepack pnpm typecheck
 corepack pnpm test
@@ -98,19 +100,33 @@ corepack pnpm build
 この環境では bare `pnpm` shim が PATH にない場合がある。`corepack pnpm` を使う。
 勝手に別の package manager へ切り替えない。
 
+RTK は Codex グローバル指示で導入済み。shell コマンドは原則 `rtk` を先頭につける。
+正確な生出力が必要な検証では `rtk proxy <cmd>` を使う。
+
+CodeGraph MCP は Codex グローバルに `codegraph` として登録済み。ただし、この
+リポジトリ自体の `.codegraph/` はまだ未初期化。次セッション冒頭で
+`codegraph init -i /home/kite/projects/codex-sidecar` を実行して status を確認する。
+
 ## Current Notes
 
-初期スキャフォールド直後のため、Codex App Server integration はまだ未実装。
-まずは ecosystem-aware な config validation、preset resolution、path safety、
-machine-readable result schema、CLI/MCP 引数処理、最小テストを固める。
+現在は read-only workflow が Codex App Server 経由で実行できる段階。
+`explore` smoke は実 App Server turn で `status: "ok"` を返すことを確認済み。
 
-この作業ディレクトリでは `.git` が空の読み取り専用ディレクトリとして見える場合が
-あり、`git status` が失敗することがある。その場合はリポジトリ未初期化として扱い、
-原因を報告する。
+まだ残っている大きな穴:
+
+- `codex_work` は worktree-backed execution が未配線なので明示的に未実装。
+- raw App Server event log はまだ実ファイル保存されていない。
+- read-only result は final assistant text 中心で、`findings` / `risks` などの
+  workflow-specific structured fields は今後強化する。
+- MCP package は tool descriptor/schema scaffold で、real sidecar execution への
+  handler 接続は未実装。
+- Throughline / Caveat の完全な Codex 対応は各 upstream repository の作業。
+  `codex-sidecar` ではまず reader/context adapter と fixture を扱う。
 
 ## Related Docs
 
 - [README.md](README.md): project overview and repository layout.
 - [docs/PLAN.md](docs/PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
+- [docs/TODO.md](docs/TODO.md): durable task list, GitHub issues, and external coordination.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.

@@ -10,7 +10,7 @@ It must satisfy two audiences at the same time:
   exploration, design pushback, risk checks, and small scoped edits.
 - **kitepon-rgb's AI developer tooling ecosystem** where Claude Code is the
   primary agent and Codex is called as a second opinion by tools such as Relay,
-  Throughline, Caveat, SmartClaude, image-generator, and IP-MCP.
+  Throughline, Caveat, SmartClaude, CodeGraph, image-generator, and IP-MCP.
 
 The implementation should therefore be layered:
 
@@ -47,11 +47,12 @@ MVP means:
 - all five workflows can return stable `SidecarResult` JSON
 - CLI can run in `--dry-run` mode and show the normalized request/result
 - MCP tool descriptors and schemas exist
-- Codex App Server integration can be added behind the same request/result
+- Codex App Server read-only execution works behind the same request/result
   boundary without changing callers
 
-The MVP does not require `codex_work` to complete real edits through Codex yet.
-It does require the refusal and isolation rules to be real, tested behavior.
+The current MVP spine has reached real read-only App Server execution. It does
+not require `codex_work` to complete real edits through Codex yet. It does
+require the refusal and isolation rules to be real, tested behavior.
 
 ## Priority Order
 
@@ -292,6 +293,7 @@ These make the tool especially useful for the user's repositories:
   - Throughline handoff memo/session summary
   - Caveat trap entries
   - SmartClaude call-value/cost hints
+  - CodeGraph local symbol graph snippets
 - risk focus presets:
   - OAuth/token/source-boundary
   - MCP transport/schema
@@ -326,9 +328,9 @@ tool that can call Codex but cannot enforce boundaries.
 
 ### Adapters Before Hard Dependencies
 
-Relay, Throughline, Caveat, and SmartClaude should initially provide context as
-plain JSON blocks. Direct imports or runtime coupling can come later only if the
-contract proves stable.
+Relay, Throughline, Caveat, SmartClaude, and CodeGraph should initially provide
+context as plain JSON blocks. Direct imports or runtime coupling can come later
+only if the contract proves stable.
 
 ### Errors Before Fallbacks
 
@@ -445,7 +447,7 @@ Exit criteria:
 
 ### Phase 4: CLI
 
-Status: complete for dry-run and diagnostics.
+Status: complete for dry-run, diagnostics, and read-only App Server execution.
 
 Tasks:
 
@@ -463,6 +465,7 @@ Exit criteria:
 - CLI can validate and shape requests locally
 - read-only commands run without write permissions
 - write command refuses unsafe state
+- read-only commands can complete through Codex App Server
 
 ### Phase 5: MCP Server
 
@@ -492,13 +495,13 @@ in `packages/core`.
 Tasks:
 
 - process lifecycle: started
-- initialize handshake: started
-- session creation: request helper started and local `thread/start` smoke passed
+- initialize handshake: implemented
+- session creation: implemented for local `thread/start`
 - request/event protocol adapter: started
 - read-only workflow execution: started and `explore` smoke passed
 - cancellation/timeout handling
 - raw event logging
-- normalized completion result
+- normalized completion result: final assistant text is captured as `summary`
 
 Exit criteria:
 
@@ -531,9 +534,12 @@ Exit criteria:
 Tasks:
 
 - define adapter input contracts
-- add optional context blocks for Relay, Throughline, Caveat, SmartClaude
+- add optional context blocks for Relay, Throughline, Caveat, SmartClaude, and
+  CodeGraph
 - add safety profiles based on existing repo families
 - add fixture projects
+- coordinate first-class Codex support in Throughline and Caveat in their own
+  repositories when adapter limits are reached
 - keep generic mode independent from adapter packages
 
 Exit criteria:

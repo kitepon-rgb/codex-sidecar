@@ -56,7 +56,7 @@ Observed response shape:
 initialize handshake, and typed helpers for `thread/start` and `turn/start`.
 It also has pure notification helpers for assistant text deltas and
 `turn/completed` state, plus a client-side notification wait primitive for
-future real execution.
+read-only execution.
 Read-only sidecar workflows can now start a real App Server turn and normalize
 the final assistant text into `SidecarResult`. `codex_work` must still return a
 structured `APP_SERVER_UNIMPLEMENTED` result until worktree-backed execution is
@@ -83,6 +83,10 @@ real App Server turn.
 8. Collect events until completion or failure.
 9. Return a normalized result with findings, file references, changed files,
    tests, and risks as appropriate.
+
+Current implementation note: read-only workflows perform steps 1-8 and return
+the final assistant text as `summary`. Richer workflow-specific JSON fields are
+tracked as follow-up work.
 
 ## Contracts To Keep Stable
 
@@ -147,7 +151,8 @@ The protocol adapter should fail explicitly.
 ## Open Questions
 
 - Whether long-lived App Server sessions should be shared across calls.
-- How much raw protocol output should be stored in logs by default.
+- How much raw protocol output should be stored in logs by default. This is
+  tracked in [issue #2](https://github.com/kitepon-rgb/codex-sidecar/issues/2).
 - How MCP clients should opt into write-capable `codex_work` calls.
 - Whether generic installs should enable App Server reuse by default.
 - How much ecosystem context is too much for a second-opinion call.
@@ -158,3 +163,4 @@ The protocol adapter should fail explicitly.
 - [../AGENTS.md](../AGENTS.md): working instructions for Codex and future agents.
 - [PLAN.md](PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
+- [TODO.md](TODO.md): durable task list and linked GitHub issues.

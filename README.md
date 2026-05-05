@@ -28,6 +28,7 @@ The surrounding ecosystem matters:
 - Throughline compresses Claude Code context and carries explicit handoffs.
 - Caveat stores long-term trap memory and repo-specific gotchas.
 - SmartClaude measures and optimizes token/context cost.
+- CodeGraph provides local symbol graph context when a repository is initialized.
 - image-generator and IP-MCP provide MCP/OAuth/deployment patterns and
   source-boundary lessons.
 
@@ -57,10 +58,31 @@ codex-sidecar/
 
 ## Status
 
-The scaffold now includes ecosystem-aware config validation, preset/request
-normalization, path safety, dry-run JSON results, CLI commands, MCP descriptors,
-and core tests. Codex App Server process management and JSONL/JSON-RPC session
-handling are the next major implementation milestone.
+The project now has a working generic spine:
+
+- ecosystem-aware config validation and preset/request normalization
+- path safety, safety profiles, and structured refusal/errors
+- stable `SidecarRequest` / `SidecarResult` types
+- CLI commands for all workflows
+- MCP tool descriptors and schemas
+- Codex App Server stdio client, JSON-line protocol handling, initialize,
+  `thread/start`, `turn/start`, completion waiting, and read-only turn execution
+- local smoke coverage showing `codex_explore` can complete through the real
+  App Server and return `status: "ok"`
+- worktree lifecycle helpers for future write workflows
+- durable TODO tracking in [docs/TODO.md](docs/TODO.md) with linked GitHub issues
+
+Current limitations:
+
+- `codex_work` is intentionally unavailable until worktree-backed execution is
+  wired end to end.
+- Read-only workflow results currently normalize the final assistant text; richer
+  workflow-specific fields such as findings and risks are tracked in
+  [issue #1](https://github.com/kitepon-rgb/codex-sidecar/issues/1).
+- MCP handlers are still descriptor/schema-only and are tracked in
+  [issue #4](https://github.com/kitepon-rgb/codex-sidecar/issues/4).
+- Codex global CodeGraph MCP is installed, but this repository's `.codegraph/`
+  index has not been initialized yet.
 
 ## Related Docs
 

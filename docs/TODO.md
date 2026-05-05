@@ -5,6 +5,8 @@ This file is the durable project task list. Keep it aligned with
 
 ## Current Priority
 
+0. In the next session, initialize CodeGraph for this repository and verify the
+   local graph status.
 1. Finish read-only result quality.
 2. Make App Server diagnostics inspectable.
 3. Wire MCP to the same core execution path.
@@ -22,6 +24,22 @@ This file is the durable project task list. Keep it aligned with
 | P1 | Wire MCP tools to real sidecar execution | Open | [#4](https://github.com/kitepon-rgb/codex-sidecar/issues/4) |
 | P0 | Implement worktree-backed `codex_work` execution | Open | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |
 | P2 | Add ecosystem adapters and fixture snapshots | Open | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
+
+## Next Session Setup
+
+CodeGraph is installed globally for Codex as the `codegraph` MCP server, and
+the CLI is available. This repository still needs its local graph initialized.
+
+Run at the start of the next session:
+
+```bash
+rtk codegraph status /home/kite/projects/codex-sidecar
+rtk codegraph init -i /home/kite/projects/codex-sidecar
+rtk codegraph status /home/kite/projects/codex-sidecar
+```
+
+After that, return to the active tasks above. Do not treat CodeGraph output as a
+replacement for direct file verification when making final claims or edits.
 
 ## External Project Coordination
 
