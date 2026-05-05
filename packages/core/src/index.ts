@@ -11,4 +11,5 @@ export * from "./profiles.js";
 export * from "./requests.js";
 export * from "./results.js";
 export * from "./safety.js";
+export * from "./structured-output.js";
 export * from "./worktree.js";

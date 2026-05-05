@@ -102,6 +102,31 @@ Server changes:
 - context block schema
 - raw event log reference schema
 
+## Structured Read-Only Output
+
+Read-only App Server turns are prompted to return exactly one JSON object. The
+adapter parses that object directly into `SidecarResult` fields. If the
+assistant output is not valid JSON, or if required workflow-specific fields are
+missing or malformed, the run fails with `PROTOCOL_ERROR`; callers must not parse
+prose as a fallback.
+
+Common required fields:
+
+- `summary`
+- `confidence`
+- `recommendedNextAction`
+- `openQuestions`
+- `fileReferences`
+- `sourceBoundaries`
+
+Workflow-specific required fields:
+
+- `codex_review`: `findings`, `missingTests`, `residualRisks`
+- `codex_risk_check`: `risks`
+- `codex_opinion`: `recommendation`, `objections`, `assumptions`,
+  `failureModes`
+- `codex_explore`: answer text in `summary`, citations in `fileReferences`
+
 ## Raw Event Logs
 
 Read-only App Server runs create one JSONL artifact under

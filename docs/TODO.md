@@ -5,19 +5,18 @@ This file is the durable project task list. Keep it aligned with
 
 ## Current Priority
 
-1. Finish read-only result quality.
-2. Make App Server diagnostics inspectable.
-3. Wire MCP to the same core execution path.
-4. Implement write workflows only through isolated worktrees.
-5. Add ecosystem adapters and fixture snapshots after the generic contracts are
+1. Expose timeout and cancellation controls for App Server turns.
+2. Wire MCP to the same core execution path.
+3. Implement write workflows only through isolated worktrees.
+4. Add ecosystem adapters and fixture snapshots after the generic contracts are
    stable.
 
 ## Active Tasks
 
 | Priority | Task | Status | Issue |
 | --- | --- | --- | --- |
-| P0 | Normalize read-only workflows into structured `SidecarResult` fields | Open | [#1](https://github.com/kitepon-rgb/codex-sidecar/issues/1) |
-| P0 | Persist raw App Server event logs and diagnostics | Open | [#2](https://github.com/kitepon-rgb/codex-sidecar/issues/2) |
+| P0 | Normalize read-only workflows into structured `SidecarResult` fields | Done | [#1](https://github.com/kitepon-rgb/codex-sidecar/issues/1) |
+| P0 | Persist raw App Server event logs and diagnostics | Done | [#2](https://github.com/kitepon-rgb/codex-sidecar/issues/2) |
 | P1 | Expose timeout and cancellation controls for App Server turns | Open | [#3](https://github.com/kitepon-rgb/codex-sidecar/issues/3) |
 | P1 | Wire MCP tools to real sidecar execution | Open | [#4](https://github.com/kitepon-rgb/codex-sidecar/issues/4) |
 | P0 | Implement worktree-backed `codex_work` execution | Open | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |

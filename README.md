@@ -67,8 +67,12 @@ The project now has a working generic spine:
 - MCP tool descriptors and schemas
 - Codex App Server stdio client, JSON-line protocol handling, initialize,
   `thread/start`, `turn/start`, completion waiting, and read-only turn execution
+- structured read-only result normalization for review, explore, opinion, and
+  risk-check workflows
+- raw App Server JSONL event logs with inspectable `rawEventLogRef` artifacts
 - local smoke coverage showing `codex_explore` can complete through the real
   App Server and return `status: "ok"`
+- local CodeGraph index initialized for this repository
 - worktree lifecycle helpers for future write workflows
 - durable TODO tracking in [docs/TODO.md](docs/TODO.md) with linked GitHub issues
 
@@ -76,13 +80,8 @@ Current limitations:
 
 - `codex_work` is intentionally unavailable until worktree-backed execution is
   wired end to end.
-- Read-only workflow results currently normalize the final assistant text; richer
-  workflow-specific fields such as findings and risks are tracked in
-  [issue #1](https://github.com/kitepon-rgb/codex-sidecar/issues/1).
 - MCP handlers are still descriptor/schema-only and are tracked in
   [issue #4](https://github.com/kitepon-rgb/codex-sidecar/issues/4).
-- Codex global CodeGraph MCP is installed, but this repository's `.codegraph/`
-  index has not been initialized yet.
 
 ## Related Docs
 

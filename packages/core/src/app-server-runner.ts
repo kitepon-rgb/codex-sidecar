@@ -3,6 +3,7 @@ import { AppServerClient, type AppServerInitializeResult, type AppServerWireNoti
 import { collectAgentMessageText, findTurnCompletion } from "./app-server-events.js";
 import { createAppServerEventLogger, type AppServerEventLogger } from "./app-server-logs.js";
 import { errorResult, toSidecarError } from "./results.js";
+import { mergeStructuredOutput, parseStructuredSidecarOutput } from "./structured-output.js";
 import type { SidecarRequest, SidecarResult } from "./types.js";
 
 export interface AppServerSessionClient {
@@ -129,25 +130,14 @@ export async function runReadOnlyAppServerRequest(
       throw new Error(`PROTOCOL_ERROR: App Server turn completed without assistant message text for thread=${threadId} turn=${turnId}`);
     }
 
-    return {
+    const structuredOutput = parseStructuredSidecarOutput(request, summary);
+
+    return mergeStructuredOutput(request, structuredOutput, {
       status: "ok",
       workflow: request.workflow,
-      summary,
-      confidence: {
-        level: "medium",
-        rationale: "Codex App Server completed a read-only turn and returned assistant message text.",
-      },
-      recommendedNextAction: recommendedNextAction(request),
       normalizedRequest: request,
-      sourceBoundaries: [
-        {
-          label: "Codex App Server",
-          source: "local codex app-server stdio",
-          trust: "local",
-        },
-      ],
       rawEventLogRef: logger.ref,
-    };
+    });
   } catch (error) {
     logger?.write({
       category: "diagnostic",
@@ -178,21 +168,6 @@ export async function runReadOnlyAppServerRequest(
     }
 
     await logger?.close();
-  }
-}
-
-function recommendedNextAction(request: SidecarRequest): string {
-  switch (request.workflow) {
-    case "review":
-      return "Inspect the findings and verify any referenced files or tests before changing code.";
-    case "explore":
-      return "Use the cited context to decide whether a follow-up review, risk-check, or scoped work request is needed.";
-    case "opinion":
-      return "Compare the recommendation against the project goal, then choose or revise the plan explicitly.";
-    case "risk-check":
-      return "Verify high-severity risks first and keep source boundaries explicit.";
-    case "work":
-      return "Review the isolated worktree output before merging.";
   }
 }
 

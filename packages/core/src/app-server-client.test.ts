@@ -5,6 +5,7 @@ import {
   buildInitializeDraft,
   buildThreadStartDraft,
   buildTurnStartDraft,
+  buildStructuredOutputPrompt,
   collectAgentMessageText,
   encodeAppServerMessage,
   findTurnCompletion,
@@ -64,16 +65,20 @@ test("buildThreadStartDraft uses strict sidecar defaults", () => {
   });
 });
 
-test("buildTurnStartDraft encodes text input with generated protocol shape", () => {
-  assert.deepEqual(buildTurnStartDraft(sampleRequest, "thread-1"), {
+test("buildTurnStartDraft encodes structured-output text input with generated protocol shape", () => {
+  const draft = buildTurnStartDraft(sampleRequest, "thread-1");
+
+  assert.deepEqual(draft, {
     method: "turn/start",
     params: {
       threadId: "thread-1",
-      input: [{ type: "text", text: "Review this diff.", text_elements: [] }],
+      input: [{ type: "text", text: buildStructuredOutputPrompt(sampleRequest), text_elements: [] }],
       cwd: "/repo",
       approvalPolicy: "never",
     },
   });
+  assert.match(draft.params.input[0].text, /Return exactly one JSON object/);
+  assert.match(draft.params.input[0].text, /findings/);
 });
 
 test("parseAppServerLine parses initialize response", () => {

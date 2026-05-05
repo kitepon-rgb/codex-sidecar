@@ -113,6 +113,10 @@ export interface SidecarResult {
   tests?: TestRecord[];
   sourceBoundaries?: SourceBoundary[];
   costNotes?: CostNotes;
+  recommendation?: string;
+  objections?: string[];
+  assumptions?: string[];
+  failureModes?: string[];
   rawEventLogRef?: string;
   normalizedRequest?: SidecarRequest;
   error?: SidecarError;

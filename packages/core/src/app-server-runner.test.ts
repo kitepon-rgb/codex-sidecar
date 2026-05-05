@@ -22,16 +22,24 @@ const request: SidecarRequest = {
 
 test("runReadOnlyAppServerRequest returns assistant text from completed turn", async () => {
   const eventLogDir = await makeTempLogDir();
+  const assistantJson = JSON.stringify({
+    summary: "hello world",
+    confidence: { level: "medium", rationale: "fake structured output" },
+    recommendedNextAction: "Use the explanation to choose a next step.",
+    openQuestions: [],
+    fileReferences: [{ path: "README.md", line: 1, label: "overview" }],
+    sourceBoundaries: [{ label: "local repo", source: "fake fixture", trust: "local" }],
+  });
   const client = new FakeAppServerClient([
     {
       kind: "notification",
       method: "item/agentMessage/delta",
-      params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: "hello " },
+      params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: assistantJson.slice(0, 30) },
     },
     {
       kind: "notification",
       method: "item/agentMessage/delta",
-      params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: "world" },
+      params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: assistantJson.slice(30) },
     },
     {
       kind: "notification",
@@ -44,6 +52,9 @@ test("runReadOnlyAppServerRequest returns assistant text from completed turn", a
 
   assert.equal(result.status, "ok");
   assert.equal(result.summary, "hello world");
+  assert.equal(result.confidence.level, "medium");
+  assert.equal(result.fileReferences?.[0]?.path, "README.md");
+  assert.equal(result.sourceBoundaries?.some((boundary) => boundary.label === "Codex App Server"), true);
   assert.equal(client.closed, false);
   assert.ok(result.rawEventLogRef?.startsWith(eventLogDir));
 
@@ -51,6 +62,82 @@ test("runReadOnlyAppServerRequest returns assistant text from completed turn", a
   assert.ok(log.some((entry) => entry.event === "run/start"));
   assert.ok(log.some((entry) => entry.event === "turn/started"));
   assert.equal(log.filter((entry) => entry.event === "notification/retained").length, 3);
+
+  await rm(eventLogDir, { recursive: true, force: true });
+});
+
+test("runReadOnlyAppServerRequest normalizes review-specific structured fields", async () => {
+  const eventLogDir = await makeTempLogDir();
+  const reviewRequest: SidecarRequest = { ...request, workflow: "review", prompt: "Review the diff." };
+  const client = new FakeAppServerClient([
+    {
+      kind: "notification",
+      method: "item/agentMessage/delta",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        itemId: "item-1",
+        delta: JSON.stringify({
+          summary: "One finding.",
+          confidence: { level: "high" },
+          recommendedNextAction: "Fix the referenced line.",
+          openQuestions: [],
+          fileReferences: [{ path: "src/app.ts", line: 10 }],
+          sourceBoundaries: [],
+          findings: [
+            {
+              severity: "high",
+              title: "Bug",
+              detail: "A real issue.",
+              evidence: "Observed in diff.",
+              file: "src/app.ts",
+              line: 10,
+              confidence: { level: "high" },
+              basis: "observed",
+            },
+          ],
+          missingTests: ["Add regression test."],
+          residualRisks: [],
+        }),
+      },
+    },
+    {
+      kind: "notification",
+      method: "turn/completed",
+      params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed", error: null } },
+    },
+  ]);
+
+  const result = await runReadOnlyAppServerRequest(reviewRequest, { client, eventLogDir });
+
+  assert.equal(result.status, "ok");
+  assert.equal(result.findings?.[0]?.severity, "high");
+  assert.equal(result.missingTests?.[0], "Add regression test.");
+
+  await rm(eventLogDir, { recursive: true, force: true });
+});
+
+test("runReadOnlyAppServerRequest fails explicitly on malformed structured output", async () => {
+  const eventLogDir = await makeTempLogDir();
+  const client = new FakeAppServerClient([
+    {
+      kind: "notification",
+      method: "item/agentMessage/delta",
+      params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: "plain prose is invalid" },
+    },
+    {
+      kind: "notification",
+      method: "turn/completed",
+      params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed", error: null } },
+    },
+  ]);
+
+  const result = await runReadOnlyAppServerRequest(request, { client, eventLogDir });
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.error?.code, "PROTOCOL_ERROR");
+  assert.match(result.error?.message ?? "", /assistant output was not valid JSON/);
+  assert.ok(result.rawEventLogRef?.startsWith(eventLogDir));
 
   await rm(eventLogDir, { recursive: true, force: true });
 });

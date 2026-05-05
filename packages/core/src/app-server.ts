@@ -1,4 +1,5 @@
 import type { SidecarRequest } from "./types.js";
+import { buildStructuredOutputPrompt } from "./structured-output.js";
 
 export const APP_SERVER_PROTOCOL_METHODS = {
   initialize: "initialize",
@@ -113,7 +114,7 @@ export function buildTurnStartDraft(request: SidecarRequest, threadId: string): 
     method: APP_SERVER_PROTOCOL_METHODS.turnStart,
     params: {
       threadId,
-      input: [{ type: "text", text: request.prompt ?? "", text_elements: [] }],
+      input: [{ type: "text", text: buildStructuredOutputPrompt(request), text_elements: [] }],
       cwd: request.projectRoot,
       approvalPolicy: "never",
     },
