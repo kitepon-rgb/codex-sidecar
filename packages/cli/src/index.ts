@@ -1,11 +1,14 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { cwd, exit } from "node:process";
 import {
   CONFIG_FILE,
   WORKFLOWS,
+  buildEcosystemContextBlocks,
   buildSidecarRequest,
   loadSidecarConfig,
   runSidecarRequest,
+  type SidecarContextBlock,
   type SidecarWorkflow,
 } from "@codex-sidecar/core";
 
@@ -20,6 +23,7 @@ interface CliOptions {
   turnTimeoutMs?: number;
   interruptOnTimeout: boolean;
   preserveWorktree: boolean;
+  context: SidecarContextBlock[];
 }
 
 type CliCommand = SidecarWorkflow | "diagnostics";
@@ -46,6 +50,7 @@ try {
       turnTimeoutMs: parsed.turnTimeoutMs,
       interruptOnTimeout: parsed.interruptOnTimeout,
       preserveWorktree: parsed.preserveWorktree,
+      context: parsed.context,
       dryRun: true,
     });
 
@@ -66,6 +71,7 @@ try {
     turnTimeoutMs: parsed.turnTimeoutMs,
     interruptOnTimeout: parsed.interruptOnTimeout,
     preserveWorktree: parsed.preserveWorktree,
+    context: parsed.context,
     dryRun: parsed.dryRun,
   });
 
@@ -87,6 +93,7 @@ function parseArgs(args: string[]): CliOptions {
     dryRun: false,
     interruptOnTimeout: true,
     preserveWorktree: true,
+    context: [],
   };
   const promptParts: string[] = [];
 
@@ -133,6 +140,11 @@ function parseArgs(args: string[]): CliOptions {
       continue;
     }
 
+    if (arg === "--context-file") {
+      options.context.push(...readContextFile(requireValue(args, (index += 1), "--context-file")));
+      continue;
+    }
+
     if (arg === "--json") {
       options.json = true;
       continue;
@@ -175,9 +187,25 @@ function parsePositiveInteger(value: string, option: string): number {
 
 function printUsage(): void {
   console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics> [options] [prompt]`);
-  console.error("Options: --project <dir> --config <file> --preset <name> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
+  console.error("Options: --project <dir> --config <file> --preset <name> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
 }
 
 function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
+}
+
+function readContextFile(path: string): SidecarContextBlock[] {
+  const raw = readFileSync(path, "utf8");
+  const parsed = JSON.parse(raw) as unknown;
+  const context = isRecord(parsed) && Array.isArray(parsed.context) ? parsed.context : parsed;
+
+  if (!Array.isArray(context)) {
+    throw new Error("CONFIG_INVALID: --context-file must contain an array or an object with a context array");
+  }
+
+  return buildEcosystemContextBlocks(context as Parameters<typeof buildEcosystemContextBlocks>[0]);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

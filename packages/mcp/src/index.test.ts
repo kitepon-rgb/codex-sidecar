@@ -19,8 +19,10 @@ test("tool descriptors expose timeout and cancellation input schema", () => {
   assert.ok(descriptor);
   const turnTimeoutMs = descriptor.inputSchema.properties.turnTimeoutMs as { type: string };
   const interruptOnTimeout = descriptor.inputSchema.properties.interruptOnTimeout as { type: string };
+  const context = descriptor.inputSchema.properties.context as { type: string };
   assert.equal(turnTimeoutMs.type, "integer");
   assert.equal(interruptOnTimeout.type, "boolean");
+  assert.equal(context.type, "array");
 });
 
 test("handleCodexSidecarToolCall runs read-only tools through core", async () => {
@@ -33,6 +35,13 @@ test("handleCodexSidecarToolCall runs read-only tools through core", async () =>
       dryRun: true,
       turnTimeoutMs: 123,
       interruptOnTimeout: false,
+      context: [
+        {
+          kind: "caveat_entry",
+          source: "caveat",
+          summary: "Remember the local hook caveat.",
+        },
+      ],
     },
     {
       loadConfig: async () => config,
@@ -46,6 +55,14 @@ test("handleCodexSidecarToolCall runs read-only tools through core", async () =>
   assert.equal(capturedInput?.workflow, "explore");
   assert.equal(capturedInput?.turnTimeoutMs, 123);
   assert.equal(capturedInput?.interruptOnTimeout, false);
+  assert.deepEqual(capturedInput?.context, [
+    {
+      kind: "caveat_entry",
+      source: "caveat",
+      trust: "local",
+      summary: "Remember the local hook caveat.",
+    },
+  ]);
   assert.equal(result.isError, false);
   assert.equal(result.structuredContent.status, "ok");
   assert.deepEqual(JSON.parse(result.content[0]?.text ?? "{}"), result.structuredContent);

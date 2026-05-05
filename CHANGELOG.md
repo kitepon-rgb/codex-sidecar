@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0] — 2026-05-05
+
+### Added
+- Public npm package metadata for @codex-sidecar/core, @codex-sidecar/cli, and @codex-sidecar/mcp.
+- Global install documentation for the codex-sidecar CLI and codex-sidecar-mcp stdio server.
+- Real MCP stdio server entrypoint and Caveat-compatible context input support.
+
+### Fixed
+- App Server isolation and final-answer parsing are hardened for Claude/Caveat sidecar use.
+- codex_work smoke can remove its temporary worktree while preserving caller-project raw event logs.
+
 ## v0.1.0 - 2026-05-05
 
 Initial functional release of the Codex sidecar execution spine.

@@ -10,6 +10,18 @@ runs Codex App Server inside an isolated git worktree.
 
 ## Install And Build
 
+Install the CLI globally:
+
+```bash
+npm install -g @codex-sidecar/cli
+```
+
+Install the MCP stdio server globally when a client should launch it by command:
+
+```bash
+npm install -g @codex-sidecar/mcp
+```
+
 From this repository:
 
 ```bash
@@ -17,7 +29,13 @@ corepack pnpm install
 corepack pnpm build
 ```
 
-During local development, call the built CLI directly:
+After global install, call the CLI directly:
+
+```bash
+codex-sidecar diagnostics --project /path/to/project
+```
+
+During local development, the equivalent built path is:
 
 ```bash
 node packages/cli/dist/index.js diagnostics --project /path/to/project
@@ -75,7 +93,7 @@ profile deny patterns, path policies, timeouts, and worktree settings without
 calling Codex:
 
 ```bash
-node packages/cli/dist/index.js diagnostics \
+codex-sidecar diagnostics \
   --project /path/to/project \
   --preset review
 ```
@@ -112,7 +130,7 @@ The CLI shape is:
 codex-sidecar <review|explore|work|opinion|risk-check|diagnostics> [options] [prompt]
 ```
 
-Current local development command:
+The local development equivalent is:
 
 ```bash
 node packages/cli/dist/index.js <workflow> [options] [prompt]
@@ -133,7 +151,7 @@ Options:
 Read-only review:
 
 ```bash
-node packages/cli/dist/index.js review \
+codex-sidecar review \
   --project /path/to/project \
   --preset review \
   "Review the current diff for regression risks and missing tests."
@@ -142,7 +160,7 @@ node packages/cli/dist/index.js review \
 Codebase exploration:
 
 ```bash
-node packages/cli/dist/index.js explore \
+codex-sidecar explore \
   --project /path/to/project \
   --preset explore \
   "Find where OAuth callback errors are normalized and cite files."
@@ -151,7 +169,7 @@ node packages/cli/dist/index.js explore \
 Design second opinion:
 
 ```bash
-node packages/cli/dist/index.js opinion \
+codex-sidecar opinion \
   --project /path/to/project \
   "Challenge this plan before we wire the new MCP tool."
 ```
@@ -159,7 +177,7 @@ node packages/cli/dist/index.js opinion \
 Focused risk check:
 
 ```bash
-node packages/cli/dist/index.js risk-check \
+codex-sidecar risk-check \
   --project /path/to/project \
   "Focus on secrets, OAuth token storage, hooks, Docker, and CI."
 ```
@@ -167,7 +185,7 @@ node packages/cli/dist/index.js risk-check \
 Scoped work in an isolated worktree:
 
 ```bash
-node packages/cli/dist/index.js work \
+codex-sidecar work \
   --project /path/to/project \
   --preset work \
   --turn-timeout-ms 300000 \
@@ -178,7 +196,7 @@ node packages/cli/dist/index.js work \
 inspect the diff. Use `--remove-worktree` for smoke tests or disposable runs:
 
 ```bash
-node packages/cli/dist/index.js work \
+codex-sidecar work \
   --project /path/to/project \
   --preset work \
   --remove-worktree \
@@ -486,7 +504,7 @@ corepack pnpm build
 For a consuming repository, start with:
 
 ```bash
-node /path/to/codex-sidecar/packages/cli/dist/index.js diagnostics \
+codex-sidecar diagnostics \
   --project /path/to/consumer \
   --preset review
 ```
@@ -494,7 +512,7 @@ node /path/to/codex-sidecar/packages/cli/dist/index.js diagnostics \
 Then run the smallest read-only smoke:
 
 ```bash
-node /path/to/codex-sidecar/packages/cli/dist/index.js explore \
+codex-sidecar explore \
   --project /path/to/consumer \
   "Return a one-sentence summary of this repository using file references."
 ```

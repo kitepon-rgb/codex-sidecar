@@ -1,4 +1,5 @@
 import { runReadOnlyAppServerRequest, type AppServerRunOptions } from "./app-server-runner.js";
+import { DEFAULT_APP_SERVER_LOG_DIR } from "./app-server-logs.js";
 import { errorResult, toSidecarError } from "./results.js";
 import type { SidecarRequest, SidecarResult, WorktreePlan, WorktreeState } from "./types.js";
 import {
@@ -9,6 +10,7 @@ import {
   removeWorktree,
   type WorktreeOptions,
 } from "./worktree.js";
+import { join } from "node:path";
 
 export interface WorktreeRunnerDependencies {
   plan?: (request: SidecarRequest, options?: WorktreeOptions) => Promise<WorktreePlan>;
@@ -57,6 +59,7 @@ export async function runWorktreeAppServerRequest(
       requireWorktree: true,
     };
     const result = await dependencies.runAppServer(worktreeRequest, {
+      eventLogDir: join(request.projectRoot, DEFAULT_APP_SERVER_LOG_DIR),
       ...(options.appServer ?? {}),
       allowWorkWorkflow: true,
     });

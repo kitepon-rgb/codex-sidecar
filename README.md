@@ -22,7 +22,19 @@ to make Codex useful as a controlled companion process inside real repositories.
 
 ## 30 Seconds
 
-Build the workspace:
+Install the CLI globally:
+
+```bash
+npm install -g @codex-sidecar/cli
+```
+
+Install the MCP stdio server globally when a client wants a command on PATH:
+
+```bash
+npm install -g @codex-sidecar/mcp
+```
+
+Build from source:
 
 ```bash
 corepack pnpm install
@@ -32,7 +44,7 @@ corepack pnpm build
 Check how a target project config resolves:
 
 ```bash
-node packages/cli/dist/index.js diagnostics \
+codex-sidecar diagnostics \
   --project /path/to/project \
   --preset review
 ```
@@ -40,7 +52,7 @@ node packages/cli/dist/index.js diagnostics \
 Ask Codex to explore a codebase through the real App Server:
 
 ```bash
-node packages/cli/dist/index.js explore \
+codex-sidecar explore \
   --project /path/to/project \
   "Find where request safety is enforced and cite files."
 ```
@@ -48,7 +60,7 @@ node packages/cli/dist/index.js explore \
 Ask Codex to make a scoped fix in an isolated worktree:
 
 ```bash
-node packages/cli/dist/index.js work \
+codex-sidecar work \
   --project /path/to/project \
   --preset work \
   "Add the smallest regression test for the parser."
@@ -201,8 +213,9 @@ The current spine is functional:
 - ecosystem context adapters and fixture snapshots
 - local CodeGraph index support for this repository
 
-The next stage is adoption work in consuming repositories such as Caveat,
-Throughline, and Spotter.
+The current release is ready for npm-based CLI and MCP installation. Caveat
+adoption is implemented through `caveat codex-sidecar ...` commands and optional
+Claude hook advisory.
 
 ## Development
 

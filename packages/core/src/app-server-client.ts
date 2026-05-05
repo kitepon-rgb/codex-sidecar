@@ -1,5 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { once } from "node:events";
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   buildAppServerCommand,
   buildInitializeDraft,
@@ -62,11 +65,18 @@ export interface AppServerClientOptions {
   args?: string[];
   cwd?: string;
   env?: NodeJS.ProcessEnv;
+  isolateCodexHome?: boolean;
   requestTimeoutMs?: number;
   onNotification?: (message: AppServerWireNotification) => void;
   onServerRequest?: (message: AppServerWireRequest) => void;
   onProtocolError?: (error: Error) => void;
   onLogEntry?: (entry: Omit<AppServerLogEntry, "timestamp">) => void;
+}
+
+export interface IsolatedCodexHome {
+  path: string;
+  env: NodeJS.ProcessEnv;
+  cleanup: () => void;
 }
 
 interface PendingRequest<T = unknown> {
@@ -115,17 +125,21 @@ export class AppServerClient {
   private readonly onServerRequest?: (message: AppServerWireRequest) => void;
   private readonly onProtocolError?: (error: Error) => void;
   private readonly onLogEntry?: (entry: Omit<AppServerLogEntry, "timestamp">) => void;
+  private readonly cleanup?: () => void;
+  private cleanupCalled = false;
 
   private constructor(
     private readonly child: ChildProcessWithoutNullStreams,
     options: AppServerClientOptions,
     startup: { command: string; args: string[] },
+    cleanup?: () => void,
   ) {
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.onNotification = options.onNotification;
     this.onServerRequest = options.onServerRequest;
     this.onProtocolError = options.onProtocolError;
     this.onLogEntry = options.onLogEntry;
+    this.cleanup = cleanup;
 
     this.log({
       category: "lifecycle",
@@ -176,13 +190,19 @@ export class AppServerClient {
     const defaultCommand = buildAppServerCommand();
     const command = options.command ?? defaultCommand.command;
     const args = options.args ?? defaultCommand.args;
+    const isolated =
+      options.env === undefined && options.isolateCodexHome !== false
+        ? createIsolatedCodexHome()
+        : undefined;
+    const env = options.env ?? isolated?.env;
+    const effectiveOptions = { ...options, env };
     const child = spawn(command, args, {
       cwd: options.cwd,
-      env: options.env,
+      env,
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    return new AppServerClient(child, options, { command, args });
+    return new AppServerClient(child, effectiveOptions, { command, args }, isolated?.cleanup);
   }
 
   get stderr(): string {
@@ -288,6 +308,7 @@ export class AppServerClient {
 
   async close(): Promise<void> {
     if (this.closed) {
+      this.cleanupOnce();
       return;
     }
 
@@ -311,6 +332,8 @@ export class AppServerClient {
         setTimeout(resolve, 1_000);
       }),
     ]);
+
+    this.cleanupOnce();
   }
 
   private handleStdout(chunk: string): void {
@@ -349,6 +372,12 @@ export class AppServerClient {
         return;
       }
     }
+  }
+
+  private cleanupOnce(): void {
+    if (this.cleanupCalled) return;
+    this.cleanupCalled = true;
+    this.cleanup?.();
   }
 
   private handleMessage(message: AppServerWireMessage): void {
@@ -428,6 +457,44 @@ export class AppServerClient {
   private log(entry: Omit<AppServerLogEntry, "timestamp">): void {
     this.onLogEntry?.(entry);
   }
+}
+
+export function createIsolatedCodexHome(baseEnv: NodeJS.ProcessEnv = process.env): IsolatedCodexHome {
+  const sourceHome = baseEnv.CODEX_HOME ?? join(homedir(), ".codex");
+  const targetHome = mkdtempSync(join(tmpdir(), "codex-sidecar-home-"));
+  chmodSync(targetHome, 0o700);
+
+  copyIfExists(join(sourceHome, "auth.json"), join(targetHome, "auth.json"));
+  copyIfExists(join(sourceHome, "installation_id"), join(targetHome, "installation_id"));
+  writeFileSync(
+    join(targetHome, "config.toml"),
+    minimalCodexConfig(readOptional(join(sourceHome, "config.toml"))),
+    "utf8",
+  );
+
+  return {
+    path: targetHome,
+    env: {
+      ...baseEnv,
+      CODEX_HOME: targetHome,
+    },
+    cleanup: () => rmSync(targetHome, { recursive: true, force: true }),
+  };
+}
+
+function copyIfExists(from: string, to: string): void {
+  if (existsSync(from)) copyFileSync(from, to);
+}
+
+function readOptional(path: string): string {
+  return existsSync(path) ? readFileSync(path, "utf8") : "";
+}
+
+function minimalCodexConfig(source: string): string {
+  const passthrough = source
+    .split(/\r?\n/)
+    .filter((line) => /^(model|model_provider|model_reasoning_effort)\s*=/.test(line.trim()));
+  return `${passthrough.join("\n")}${passthrough.length > 0 ? "\n" : ""}`;
 }
 
 export function encodeAppServerMessage(message: Record<string, unknown>): string {

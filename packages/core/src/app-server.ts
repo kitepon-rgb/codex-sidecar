@@ -10,7 +10,7 @@ export const APP_SERVER_PROTOCOL_METHODS = {
 } as const;
 
 export interface AppServerCommand {
-  command: "codex";
+  command: string;
   args: string[];
 }
 
@@ -81,8 +81,16 @@ export interface AppServerTurnInterruptDraft {
 
 export function buildAppServerCommand(listen = "stdio://"): AppServerCommand {
   return {
-    command: "codex",
-    args: ["app-server", "--listen", listen],
+    command: process.env.CODEX_BINARY ?? "codex",
+    args: [
+      "app-server",
+      "-c",
+      "mcp_servers={}",
+      "-c",
+      "plugins={}",
+      "--listen",
+      listen,
+    ],
   };
 }
 

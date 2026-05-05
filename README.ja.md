@@ -20,6 +20,13 @@ OpenAI API gateway でも画像生成 proxy でもありません。Codex App Se
 workspace を build:
 
 ```bash
+npm install -g @codex-sidecar/cli
+npm install -g @codex-sidecar/mcp
+```
+
+source から build する場合:
+
+```bash
 corepack pnpm install
 corepack pnpm build
 ```
@@ -27,7 +34,7 @@ corepack pnpm build
 対象 repo の設定解決を確認:
 
 ```bash
-node packages/cli/dist/index.js diagnostics \
+codex-sidecar diagnostics \
   --project /path/to/project \
   --preset review
 ```
@@ -35,7 +42,7 @@ node packages/cli/dist/index.js diagnostics \
 Codex に read-only 調査を依頼:
 
 ```bash
-node packages/cli/dist/index.js explore \
+codex-sidecar explore \
   --project /path/to/project \
   "request safety がどこで検証されるか、file reference つきで答えて。"
 ```
@@ -43,7 +50,7 @@ node packages/cli/dist/index.js explore \
 隔離 worktree で小さな修正を依頼:
 
 ```bash
-node packages/cli/dist/index.js work \
+codex-sidecar work \
   --project /path/to/project \
   --preset work \
   "parser の最小 regression test を追加して。"

@@ -1,11 +1,14 @@
 {
   "name": "@codex-sidecar/mcp",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
+  "private": false,
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "codex-sidecar-mcp": "./dist/server.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -13,9 +16,14 @@
     "test": "tsc -p tsconfig.json && node --test dist/index.test.js"
   },
   "dependencies": {
-    "@codex-sidecar/core": "workspace:*"
+    "@codex-sidecar/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "typescript": "^5.8.3"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

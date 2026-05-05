@@ -16,6 +16,11 @@ export function collectAgentMessageText(
   notifications: readonly AppServerWireNotification[],
   filter: AppServerTurnFilter = {},
 ): string {
+  const completedFinalText = findCompletedFinalAgentMessageText(notifications, filter);
+  if (completedFinalText !== undefined) {
+    return completedFinalText;
+  }
+
   return notifications
     .filter((notification) => notification.method === "item/agentMessage/delta")
     .map((notification) => notification.params)
@@ -72,6 +77,34 @@ function matchesTurnFilter(params: Record<string, unknown>, filter: AppServerTur
   }
 
   return true;
+}
+
+function findCompletedFinalAgentMessageText(
+  notifications: readonly AppServerWireNotification[],
+  filter: AppServerTurnFilter,
+): string | undefined {
+  for (let index = notifications.length - 1; index >= 0; index -= 1) {
+    const notification = notifications[index];
+    if (notification.method !== "item/completed" || !isRecord(notification.params)) {
+      continue;
+    }
+
+    const params = notification.params;
+    if (!matchesTurnFilter(params, filter)) {
+      continue;
+    }
+
+    const item = params.item;
+    if (!isRecord(item)) {
+      continue;
+    }
+
+    if (item.type === "agentMessage" && item.phase === "final_answer" && typeof item.text === "string") {
+      return item.text;
+    }
+  }
+
+  return undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

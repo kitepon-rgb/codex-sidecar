@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   AppServerProtocolError,
+  buildAppServerCommand,
   buildInitializeDraft,
   buildThreadStartDraft,
   buildTurnInterruptDraft,
   buildTurnStartDraft,
   buildStructuredOutputPrompt,
   collectAgentMessageText,
+  createIsolatedCodexHome,
   encodeAppServerMessage,
   findTurnCompletion,
   hasTurnCompleted,
@@ -33,6 +38,12 @@ const sampleRequest: SidecarRequest = {
   dryRun: false,
 };
 
+function mkTempDir(prefix: string): string {
+  const dir = join(tmpdir(), `${prefix}${Math.random().toString(16).slice(2)}`);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
 test("encodeAppServerMessage writes one JSON object per line", () => {
   assert.equal(encodeAppServerMessage({ id: 1, method: "initialize", params: { ok: true } }), '{"id":1,"method":"initialize","params":{"ok":true}}\n');
 });
@@ -52,6 +63,68 @@ test("buildInitializeDraft opts into experimental app-server API", () => {
       },
     },
   });
+});
+
+test("buildAppServerCommand disables inherited MCP servers and plugins", () => {
+  const previous = process.env.CODEX_BINARY;
+  delete process.env.CODEX_BINARY;
+  assert.deepEqual(buildAppServerCommand("stdio://"), {
+    command: "codex",
+    args: [
+      "app-server",
+      "-c",
+      "mcp_servers={}",
+      "-c",
+      "plugins={}",
+      "--listen",
+      "stdio://",
+    ],
+  });
+  process.env.CODEX_BINARY = previous;
+});
+
+test("buildAppServerCommand can use an explicit Codex binary", () => {
+  const previous = process.env.CODEX_BINARY;
+  process.env.CODEX_BINARY = "/opt/codex";
+  try {
+    assert.equal(buildAppServerCommand("stdio://").command, "/opt/codex");
+  } finally {
+    process.env.CODEX_BINARY = previous;
+  }
+});
+
+test("createIsolatedCodexHome carries auth but drops MCP config", () => {
+  const source = mkTempDir("codex-source-");
+  try {
+    writeFileSync(join(source, "auth.json"), "{\"token\":\"redacted\"}", "utf8");
+    writeFileSync(join(source, "installation_id"), "install-id", "utf8");
+    writeFileSync(
+      join(source, "config.toml"),
+      [
+        'model = "gpt-5.5"',
+        'model_reasoning_effort = "high"',
+        "[mcp_servers.codegraph]",
+        'command = "codegraph"',
+      ].join("\n"),
+      "utf8",
+    );
+
+    const isolated = createIsolatedCodexHome({ CODEX_HOME: source });
+    try {
+      assert.equal(isolated.env.CODEX_HOME, isolated.path);
+      assert.equal(readFileSync(join(isolated.path, "auth.json"), "utf8"), "{\"token\":\"redacted\"}");
+      assert.equal(readFileSync(join(isolated.path, "installation_id"), "utf8"), "install-id");
+      assert.equal(
+        readFileSync(join(isolated.path, "config.toml"), "utf8"),
+        ['model = "gpt-5.5"', 'model_reasoning_effort = "high"', ""].join("\n"),
+      );
+    } finally {
+      isolated.cleanup();
+    }
+    assert.equal(existsSync(isolated.path), false);
+  } finally {
+    rmSync(source, { recursive: true, force: true });
+  }
 });
 
 test("buildThreadStartDraft uses strict sidecar defaults", () => {
@@ -151,6 +224,50 @@ test("collectAgentMessageText concatenates matching deltas", () => {
       { threadId: "t1", turnId: "u1" },
     ),
     "hello world",
+  );
+});
+
+test("collectAgentMessageText prefers completed final answer over commentary deltas", () => {
+  assert.equal(
+    collectAgentMessageText(
+      [
+        {
+          kind: "notification",
+          method: "item/agentMessage/delta",
+          params: { threadId: "t1", turnId: "u1", itemId: "commentary-1", delta: "I will inspect the repo first." },
+        },
+        {
+          kind: "notification",
+          method: "item/completed",
+          params: {
+            threadId: "t1",
+            turnId: "u1",
+            item: {
+              type: "agentMessage",
+              id: "commentary-1",
+              text: "I will inspect the repo first.",
+              phase: "commentary",
+            },
+          },
+        },
+        {
+          kind: "notification",
+          method: "item/completed",
+          params: {
+            threadId: "t1",
+            turnId: "u1",
+            item: {
+              type: "agentMessage",
+              id: "final-1",
+              text: "{\"summary\":\"done\"}",
+              phase: "final_answer",
+            },
+          },
+        },
+      ],
+      { threadId: "t1", turnId: "u1" },
+    ),
+    "{\"summary\":\"done\"}",
   );
 });
 

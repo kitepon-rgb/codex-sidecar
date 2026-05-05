@@ -28,14 +28,16 @@ const plan: WorktreePlan = {
 
 test("runWorktreeAppServerRequest runs Codex inside isolated worktree and reports changed files", async () => {
   let appServerProjectRoot = "";
+  let appServerEventLogDir = "";
 
   const result = await runWorktreeAppServerRequest(request, {
     dependencies: {
       plan: async () => plan,
       create: async (createdPlan) => createdPlan,
       collect: async () => state(["docs/plan.md"]),
-      runAppServer: async (worktreeRequest) => {
+      runAppServer: async (worktreeRequest, options) => {
         appServerProjectRoot = worktreeRequest.projectRoot;
+        appServerEventLogDir = options?.eventLogDir ?? "";
         return okResult(worktreeRequest);
       },
     },
@@ -43,6 +45,7 @@ test("runWorktreeAppServerRequest runs Codex inside isolated worktree and report
 
   assert.equal(result.status, "ok");
   assert.equal(appServerProjectRoot, "/tmp/repo-worktree");
+  assert.equal(appServerEventLogDir, "/repo/.codex-sidecar/logs/app-server");
   assert.deepEqual(result.changedFiles, ["docs/plan.md"]);
   assert.equal(result.worktreePath, "/tmp/repo-worktree");
   assert.equal(result.worktreePreserved, true);

@@ -3,11 +3,13 @@ import {
   DEFAULT_TURN_TIMEOUT_MS,
   UNKNOWN_CONFIDENCE,
   WORKFLOWS,
+  buildEcosystemContextBlocks,
   loadSidecarConfig,
   runSidecarRequest,
   toSidecarError,
   type RequestInput,
   type SidecarConfig,
+  type SidecarContextBlock,
   type SidecarError,
   type SidecarResult,
   type SidecarWorkflow,
@@ -47,6 +49,7 @@ export interface CodexSidecarToolInput {
   interruptOnTimeout?: boolean;
   allowWork?: boolean;
   preserveWorktree?: boolean;
+  context?: SidecarContextBlock[];
 }
 
 export interface McpToolCallResult {
@@ -97,6 +100,14 @@ const commonProperties = {
   preserveWorktree: {
     type: "boolean",
     description: "Whether codex_work should keep the isolated worktree for review. Defaults to true.",
+  },
+  context: {
+    type: "array",
+    description: "Optional sidecar context blocks, such as Caveat caveat_entry blocks.",
+    items: {
+      type: "object",
+      additionalProperties: true,
+    },
   },
 } as const;
 
@@ -153,6 +164,7 @@ export async function handleCodexSidecarToolCall(
       turnTimeoutMs: input.value.turnTimeoutMs,
       interruptOnTimeout: input.value.interruptOnTimeout,
       preserveWorktree: input.value.preserveWorktree,
+      context: input.value.context,
     });
     return toMcpToolCallResult(result);
   } catch (error) {
@@ -219,6 +231,20 @@ function parseToolInput(rawInput: unknown): { value: CodexSidecarToolInput } | {
       errors.push("turnTimeoutMs must be a positive integer");
     } else {
       input.turnTimeoutMs = rawInput.turnTimeoutMs;
+    }
+  }
+
+  if ("context" in rawInput) {
+    if (!Array.isArray(rawInput.context)) {
+      errors.push("context must be an array");
+    } else {
+      try {
+        input.context = buildEcosystemContextBlocks(
+          rawInput.context as Parameters<typeof buildEcosystemContextBlocks>[0],
+        );
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
     }
   }
 
