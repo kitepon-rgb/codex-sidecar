@@ -69,7 +69,7 @@ export async function assertWorktreeChangesAllowed(state: WorktreeState, request
 }
 
 export async function removeWorktree(plan: WorktreePlan): Promise<void> {
-  await runGit(plan.projectRoot, ["worktree", "remove", plan.worktreePath]);
+  await runGit(plan.projectRoot, ["worktree", "remove", "--force", plan.worktreePath]);
 }
 
 export function parsePorcelainStatus(output: string): string[] {
