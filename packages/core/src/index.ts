@@ -1,5 +1,6 @@
 export * from "./types.js";
 export * from "./app-server.js";
+export * from "./app-server-client.js";
 export * from "./config.js";
 export * from "./paths.js";
 export * from "./presets.js";

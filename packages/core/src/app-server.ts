@@ -12,6 +12,21 @@ export interface AppServerCommand {
   args: string[];
 }
 
+export interface AppServerInitializeDraft {
+  method: typeof APP_SERVER_PROTOCOL_METHODS.initialize;
+  params: {
+    clientInfo: {
+      name: "codex-sidecar";
+      title: "Codex Sidecar";
+      version: string;
+    };
+    capabilities: {
+      experimentalApi: true;
+      optOutNotificationMethods: string[];
+    };
+  };
+}
+
 export interface AppServerThreadStartDraft {
   method: typeof APP_SERVER_PROTOCOL_METHODS.threadStart;
   params: {
@@ -39,6 +54,23 @@ export function buildAppServerCommand(listen = "stdio://"): AppServerCommand {
   return {
     command: "codex",
     args: ["app-server", "--listen", listen],
+  };
+}
+
+export function buildInitializeDraft(version = "0.0.0"): AppServerInitializeDraft {
+  return {
+    method: APP_SERVER_PROTOCOL_METHODS.initialize,
+    params: {
+      clientInfo: {
+        name: "codex-sidecar",
+        title: "Codex Sidecar",
+        version,
+      },
+      capabilities: {
+        experimentalApi: true,
+        optOutNotificationMethods: [],
+      },
+    },
   };
 }
 

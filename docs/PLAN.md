@@ -484,12 +484,14 @@ Exit criteria:
 
 ### Phase 6: Codex App Server Integration
 
-Status: protocol discovery started. App Server command and generated protocol
-method names are documented; real transport framing is not implemented.
+Status: transport foundation started. App Server command, generated protocol
+method names, newline-delimited stdio framing, request encoding, response
+parsing, and initialize handshake are implemented in `packages/core`.
 
 Tasks:
 
-- process lifecycle
+- process lifecycle: started
+- initialize handshake: started
 - session creation
 - request/event protocol adapter
 - cancellation/timeout handling

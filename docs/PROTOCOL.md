@@ -32,10 +32,27 @@ Verified against the local `codex` CLI on 2026-05-05:
   - `thread/start`
   - `turn/start`
   - `review/start`
+- `stdio://` uses newline-delimited JSON objects. It does not use
+  `Content-Length` framing.
+- A minimal initialize request keeps the process open and receives an `id`
+  response followed by notifications:
 
-Until the transport framing is implemented and tested, `packages/core` should
-only expose draft App Server request builders and must continue to return a
-structured `APP_SERVER_UNIMPLEMENTED` result for real execution.
+```json
+{"id":1,"method":"initialize","params":{"clientInfo":{"name":"codex-sidecar","title":"Codex Sidecar","version":"0.0.0"},"capabilities":{"experimentalApi":true,"optOutNotificationMethods":[]}}}
+```
+
+Observed response shape:
+
+```json
+{"id":1,"result":{"userAgent":"codex_vscode/0.128.0-alpha.1 (Ubuntu 26.4.0; x86_64) xterm-256color (codex-sidecar; 0.0.0)","codexHome":"/home/kite/.codex","platformFamily":"unix","platformOs":"linux"}}
+{"method":"remoteControl/status/changed","params":{"status":"disabled","environmentId":null}}
+```
+
+`packages/core` now owns the minimal stdio client, line parser, request encoder,
+and initialize handshake. Until thread/turn event normalization is implemented,
+real sidecar execution must still return a structured
+`APP_SERVER_UNIMPLEMENTED` result instead of silently falling back to another
+Codex command.
 
 ## Expected Flow
 
