@@ -1,0 +1,42 @@
+# TODO
+
+This file is the durable project task list. Keep it aligned with
+[PLAN.md](PLAN.md) and the GitHub issues linked below.
+
+## Current Priority
+
+1. Finish read-only result quality.
+2. Make App Server diagnostics inspectable.
+3. Wire MCP to the same core execution path.
+4. Implement write workflows only through isolated worktrees.
+5. Add ecosystem adapters and fixture snapshots after the generic contracts are
+   stable.
+
+## Active Tasks
+
+| Priority | Task | Status | Issue |
+| --- | --- | --- | --- |
+| P0 | Normalize read-only workflows into structured `SidecarResult` fields | Open | [#1](https://github.com/kitepon-rgb/codex-sidecar/issues/1) |
+| P0 | Persist raw App Server event logs and diagnostics | Open | [#2](https://github.com/kitepon-rgb/codex-sidecar/issues/2) |
+| P1 | Expose timeout and cancellation controls for App Server turns | Open | [#3](https://github.com/kitepon-rgb/codex-sidecar/issues/3) |
+| P1 | Wire MCP tools to real sidecar execution | Open | [#4](https://github.com/kitepon-rgb/codex-sidecar/issues/4) |
+| P0 | Implement worktree-backed `codex_work` execution | Open | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |
+| P2 | Add ecosystem adapters and fixture snapshots | Open | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
+
+## Rules
+
+- Keep this file high-level; put implementation detail in linked issues or
+  focused design docs.
+- Do not close a TODO entry until tests or smoke checks prove the behavior.
+- If a task cannot be completed as planned, record the explicit blocker instead
+  of silently changing scope.
+- `codex_work` remains unavailable until isolated worktree execution is fully
+  wired and verified.
+
+## Related Docs
+
+- [../README.md](../README.md): project overview and repository layout.
+- [../AGENTS.md](../AGENTS.md): working instructions for Codex and future agents.
+- [PLAN.md](PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
+- [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
+- [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.

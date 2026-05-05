@@ -41,6 +41,7 @@ worktree isolation, and normalized machine-readable results.
 codex-sidecar/
 ├─ docs/
 │  ├─ PLAN.md
+│  ├─ TODO.md
 │  ├─ ARCHITECTURE.md
 │  └─ PROTOCOL.md
 ├─ examples/
@@ -65,5 +66,6 @@ handling are the next major implementation milestone.
 
 - [AGENTS.md](AGENTS.md): working instructions for Codex and future agents.
 - [docs/PLAN.md](docs/PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
+- [docs/TODO.md](docs/TODO.md): durable task list and linked GitHub issues.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
