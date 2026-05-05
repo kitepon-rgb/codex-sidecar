@@ -1,6 +1,6 @@
 {
   "name": "codex-sidecar-cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": false,
   "license": "MIT",
   "type": "module",
@@ -13,7 +13,7 @@
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "codex-sidecar-core": "workspace:*"
+    "codex-sidecar-core": "^0.2.0"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

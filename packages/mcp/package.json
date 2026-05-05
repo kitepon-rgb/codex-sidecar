@@ -1,6 +1,6 @@
 {
   "name": "codex-sidecar-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": false,
   "license": "MIT",
   "type": "module",
@@ -16,7 +16,7 @@
     "test": "tsc -p tsconfig.json && node --test dist/index.test.js"
   },
   "dependencies": {
-    "codex-sidecar-core": "workspace:*",
+    "codex-sidecar-core": "^0.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^4.4.3"
   },
