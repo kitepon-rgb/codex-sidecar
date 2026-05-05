@@ -44,7 +44,8 @@ codex-sidecar/
 │  ├─ PLAN.md
 │  ├─ TODO.md
 │  ├─ ARCHITECTURE.md
-│  └─ PROTOCOL.md
+│  ├─ PROTOCOL.md
+│  └─ USAGE.md
 ├─ examples/
 │  └─ .codex-sidecar.yml
 ├─ packages/
@@ -88,3 +89,4 @@ The project now has a working generic spine:
 - [docs/TODO.md](docs/TODO.md): durable task list and linked GitHub issues.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
+- [docs/USAGE.md](docs/USAGE.md): CLI, MCP handler, worktree, raw log, and structured result examples.
