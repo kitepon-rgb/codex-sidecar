@@ -84,6 +84,7 @@ export interface SidecarRequest {
   resultFormat: ResultFormat;
   turnTimeoutMs: number;
   interruptOnTimeout: boolean;
+  preserveWorktree: boolean;
   context: SidecarContextBlock[];
   dryRun: boolean;
 }
@@ -117,6 +118,8 @@ export interface SidecarResult {
   fileReferences?: FileReference[];
   changedFiles?: string[];
   tests?: TestRecord[];
+  worktreePath?: string;
+  worktreePreserved?: boolean;
   sourceBoundaries?: SourceBoundary[];
   costNotes?: CostNotes;
   recommendation?: string;

@@ -19,6 +19,7 @@ interface CliOptions {
   dryRun: boolean;
   turnTimeoutMs?: number;
   interruptOnTimeout: boolean;
+  preserveWorktree: boolean;
 }
 
 type CliCommand = SidecarWorkflow | "diagnostics";
@@ -44,6 +45,7 @@ try {
       prompt: parsed.prompt,
       turnTimeoutMs: parsed.turnTimeoutMs,
       interruptOnTimeout: parsed.interruptOnTimeout,
+      preserveWorktree: parsed.preserveWorktree,
       dryRun: true,
     });
 
@@ -63,6 +65,7 @@ try {
     prompt: parsed.prompt,
     turnTimeoutMs: parsed.turnTimeoutMs,
     interruptOnTimeout: parsed.interruptOnTimeout,
+    preserveWorktree: parsed.preserveWorktree,
     dryRun: parsed.dryRun,
   });
 
@@ -83,6 +86,7 @@ function parseArgs(args: string[]): CliOptions {
     json: true,
     dryRun: false,
     interruptOnTimeout: true,
+    preserveWorktree: true,
   };
   const promptParts: string[] = [];
 
@@ -121,6 +125,11 @@ function parseArgs(args: string[]): CliOptions {
 
     if (arg === "--no-interrupt-on-timeout") {
       options.interruptOnTimeout = false;
+      continue;
+    }
+
+    if (arg === "--remove-worktree") {
+      options.preserveWorktree = false;
       continue;
     }
 
@@ -166,7 +175,7 @@ function parsePositiveInteger(value: string, option: string): number {
 
 function printUsage(): void {
   console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics> [options] [prompt]`);
-  console.error("Options: --project <dir> --config <file> --preset <name> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout");
+  console.error("Options: --project <dir> --config <file> --preset <name> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
 }
 
 function printJson(value: unknown): void {

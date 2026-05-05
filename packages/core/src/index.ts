@@ -13,3 +13,4 @@ export * from "./results.js";
 export * from "./safety.js";
 export * from "./structured-output.js";
 export * from "./worktree.js";
+export * from "./worktree-runner.js";

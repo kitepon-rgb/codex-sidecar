@@ -1,8 +1,9 @@
 import { runReadOnlyAppServerRequest } from "./app-server-runner.js";
 import { normalizeSidecarRequest, type RequestInput } from "./presets.js";
-import { dryRunResult, errorResult, toSidecarError, unimplementedResult } from "./results.js";
+import { dryRunResult, errorResult, toSidecarError } from "./results.js";
 import { validateRequestSafety } from "./safety.js";
 import { DEFAULT_TURN_TIMEOUT_MS, type SidecarConfig, type SidecarRequest, type SidecarResult } from "./types.js";
+import { runWorktreeAppServerRequest } from "./worktree-runner.js";
 
 export type { RequestInput } from "./presets.js";
 export type { SidecarRequest, SidecarWorkflow } from "./types.js";
@@ -36,6 +37,7 @@ export async function runSidecarRequest(
       resultFormat: input.resultFormat ?? "json",
       turnTimeoutMs: input.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS,
       interruptOnTimeout: input.interruptOnTimeout ?? true,
+      preserveWorktree: input.preserveWorktree ?? true,
       context: [],
       dryRun: input.dryRun ?? false,
     };
@@ -47,7 +49,7 @@ export async function runSidecarRequest(
   }
 
   if (request.workflow === "work") {
-    return unimplementedResult(request);
+    return runWorktreeAppServerRequest(request);
   }
 
   return runReadOnlyAppServerRequest(request);

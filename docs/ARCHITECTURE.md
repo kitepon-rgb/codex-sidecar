@@ -100,9 +100,9 @@ The CLI should stay thin and delegate policy decisions to `core`.
 The CLI is also the generic user-facing entrypoint. It should not require Relay,
 Throughline, Caveat, SmartClaude, CodeGraph, or any other ecosystem project.
 
-Read-only workflows currently call Codex App Server through `core`. Write
-workflows still return a structured `APP_SERVER_UNIMPLEMENTED` result until
-worktree-backed execution is complete.
+Read-only workflows call Codex App Server through `core`. Write workflows run
+through isolated git worktrees and return reviewable changed-file metadata
+without touching the active working tree.
 
 ### `packages/mcp`
 
@@ -136,6 +136,7 @@ Inside `packages/core/src`:
 - `app-server-events`: notification helpers for turn completion and assistant text
 - `app-server-runner`: read-only execution path and `SidecarResult` conversion
 - `worktree`: isolated worktree lifecycle
+- `worktree-runner`: `codex_work` execution inside an isolated git worktree
 - future `context`: optional context block adapters
 - future `prompts`: workflow-specific prompt shaping / structured-output requests
 - future `diagnostics`: environment and config checks

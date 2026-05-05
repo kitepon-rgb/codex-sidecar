@@ -15,6 +15,7 @@ const baseRequest: SidecarRequest = {
   resultFormat: "json",
   turnTimeoutMs: 600_000,
   interruptOnTimeout: true,
+  preserveWorktree: true,
   context: [],
   dryRun: false,
 };

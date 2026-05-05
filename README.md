@@ -72,16 +72,12 @@ The project now has a working generic spine:
 - raw App Server JSONL event logs with inspectable `rawEventLogRef` artifacts
 - caller-selected turn timeouts with optional App Server `turn/interrupt`
   cancellation on timeout
+- worktree-backed `codex_work` execution that preserves the active working tree
+  and reports changed files for review
 - local smoke coverage showing `codex_explore` can complete through the real
   App Server and return `status: "ok"`
 - local CodeGraph index initialized for this repository
-- worktree lifecycle helpers for future write workflows
 - durable TODO tracking in [docs/TODO.md](docs/TODO.md) with linked GitHub issues
-
-Current limitations:
-
-- `codex_work` is intentionally unavailable until worktree-backed execution is
-  wired end to end.
 
 ## Related Docs
 

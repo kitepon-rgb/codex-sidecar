@@ -163,6 +163,20 @@ CLI callers can set these with `--turn-timeout-ms <ms>` and
 `--no-interrupt-on-timeout`. MCP tool descriptors expose the same fields as
 `turnTimeoutMs` and `interruptOnTimeout`.
 
+## Worktree-Backed Work
+
+`codex_work` creates an isolated git worktree before calling Codex App Server
+with workspace-write sandboxing. The active project root remains the policy
+anchor, while the App Server turn runs with `projectRoot` set to the isolated
+worktree path.
+
+After the turn, the adapter collects `git status --porcelain=v1` from the
+worktree, enforces `allowedPaths` and `denyPaths` against the changed files, and
+returns `changedFiles`, `worktreePath`, and `worktreePreserved` in
+`SidecarResult`. Worktrees are preserved by default for human review. CLI
+callers can pass `--remove-worktree` to delete the isolated worktree after the
+result is collected.
+
 The following are adapter details and may change with App Server versions:
 
 - process startup flags

@@ -8,6 +8,7 @@ import type {
   SidecarResult,
   SidecarRisk,
   SourceBoundary,
+  TestRecord,
 } from "./types.js";
 
 interface StructuredOutput {
@@ -20,6 +21,7 @@ interface StructuredOutput {
   missingTests?: string[];
   residualRisks?: string[];
   fileReferences?: FileReference[];
+  tests?: TestRecord[];
   sourceBoundaries?: SourceBoundary[];
   recommendation?: string;
   objections?: string[];
@@ -103,7 +105,8 @@ export function parseStructuredSidecarOutput(request: SidecarRequest, assistantT
     case "explore":
       break;
     case "work":
-      errors.push("work workflow is not supported by read-only structured output");
+      structured.tests = parseTests(output.tests, "tests", errors, true);
+      structured.risks = parseRisks(output.risks, "risks", errors, true);
       break;
   }
 
@@ -130,6 +133,7 @@ export function mergeStructuredOutput(
     missingTests: output.missingTests,
     residualRisks: output.residualRisks,
     fileReferences: output.fileReferences,
+    tests: output.tests,
     sourceBoundaries: [
       ...(output.sourceBoundaries ?? []),
       {
@@ -171,7 +175,11 @@ function workflowSchema(workflow: SidecarRequest["workflow"]): string {
     case "explore":
       return "Explore workflow fields: put the answer in summary and cite relevant files in fileReferences.";
     case "work":
-      return "Work workflow is not supported in this read-only App Server path.";
+      return [
+        "Work workflow fields:",
+        "- tests: Array<{ command: string, status: \"passed\" | \"failed\" | \"not-run\", summary?: string }>",
+        "- risks: Array<{ severity, title, detail, affectedFiles, suggestedVerification?: string, confidence, basis }>",
+      ].join("\n");
   }
 }
 
@@ -346,6 +354,30 @@ function parseRisks(value: unknown, path: string, errors: string[], required = f
     }
 
     return risk;
+  });
+}
+
+function parseTests(value: unknown, path: string, errors: string[], required = false): TestRecord[] | undefined {
+  const items = parseArray(value, path, errors, required);
+  if (!items) {
+    return undefined;
+  }
+
+  return items.map((item, index) => {
+    const record = assertRecord(item, `${path}[${index}]`, errors);
+    const status = record.status;
+    if (status !== "passed" && status !== "failed" && status !== "not-run") {
+      errors.push(`${path}[${index}].status must be passed, failed, or not-run`);
+    }
+    if ("summary" in record && typeof record.summary !== "string") {
+      errors.push(`${path}[${index}].summary must be a string when present`);
+    }
+
+    return {
+      command: requireString(record, "command", errors, `${path}[${index}].command`),
+      status: status === "passed" || status === "failed" || status === "not-run" ? status : "not-run",
+      summary: typeof record.summary === "string" ? record.summary : undefined,
+    };
   });
 }
 

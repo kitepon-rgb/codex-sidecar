@@ -25,13 +25,14 @@ export interface AppServerRunOptions {
   eventLogDir?: string;
   version?: string;
   turnTimeoutMs?: number;
+  allowWorkWorkflow?: boolean;
 }
 
 export async function runReadOnlyAppServerRequest(
   request: SidecarRequest,
   options: AppServerRunOptions = {},
 ): Promise<SidecarResult> {
-  if (!request.readonly || request.workflow === "work") {
+  if ((!request.readonly || request.workflow === "work") && options.allowWorkWorkflow !== true) {
     return errorResult(
       request,
       toSidecarError(new Error("APP_SERVER_UNIMPLEMENTED: write-capable App Server execution is not wired yet")),

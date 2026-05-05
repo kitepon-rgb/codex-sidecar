@@ -86,6 +86,7 @@ function okResult(input: RequestInput): SidecarResult {
       resultFormat: "json",
       turnTimeoutMs: input.turnTimeoutMs ?? 600_000,
       interruptOnTimeout: input.interruptOnTimeout ?? true,
+      preserveWorktree: input.preserveWorktree ?? true,
       context: [],
       dryRun: input.dryRun ?? false,
     },

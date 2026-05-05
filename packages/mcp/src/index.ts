@@ -46,6 +46,7 @@ export interface CodexSidecarToolInput {
   turnTimeoutMs?: number;
   interruptOnTimeout?: boolean;
   allowWork?: boolean;
+  preserveWorktree?: boolean;
 }
 
 export interface McpToolCallResult {
@@ -92,6 +93,10 @@ const commonProperties = {
   allowWork: {
     type: "boolean",
     description: "Required explicit opt-in for codex_work. Ignored by read-only tools.",
+  },
+  preserveWorktree: {
+    type: "boolean",
+    description: "Whether codex_work should keep the isolated worktree for review. Defaults to true.",
   },
 } as const;
 
@@ -147,6 +152,7 @@ export async function handleCodexSidecarToolCall(
       dryRun: input.value.dryRun,
       turnTimeoutMs: input.value.turnTimeoutMs,
       interruptOnTimeout: input.value.interruptOnTimeout,
+      preserveWorktree: input.value.preserveWorktree,
     });
     return toMcpToolCallResult(result);
   } catch (error) {
@@ -206,6 +212,7 @@ function parseToolInput(rawInput: unknown): { value: CodexSidecarToolInput } | {
   copyOptionalBoolean(rawInput, input, "dryRun", errors);
   copyOptionalBoolean(rawInput, input, "interruptOnTimeout", errors);
   copyOptionalBoolean(rawInput, input, "allowWork", errors);
+  copyOptionalBoolean(rawInput, input, "preserveWorktree", errors);
 
   if ("turnTimeoutMs" in rawInput) {
     if (typeof rawInput.turnTimeoutMs !== "number" || !Number.isInteger(rawInput.turnTimeoutMs) || rawInput.turnTimeoutMs < 1) {
@@ -245,7 +252,7 @@ function copyOptionalString(
 function copyOptionalBoolean(
   source: Record<string, unknown>,
   target: CodexSidecarToolInput,
-  key: "dryRun" | "interruptOnTimeout" | "allowWork",
+  key: "dryRun" | "interruptOnTimeout" | "allowWork" | "preserveWorktree",
   errors: string[],
 ): void {
   if (!(key in source)) {
@@ -284,6 +291,7 @@ function mcpErrorResult(
       resultFormat: "json",
       turnTimeoutMs: DEFAULT_TURN_TIMEOUT_MS,
       interruptOnTimeout: true,
+      preserveWorktree: true,
       context: [],
       dryRun: false,
     },

@@ -16,6 +16,7 @@ export interface RequestInput {
   resultFormat?: ResultFormat;
   turnTimeoutMs?: number;
   interruptOnTimeout?: boolean;
+  preserveWorktree?: boolean;
   dryRun?: boolean;
 }
 
@@ -59,6 +60,7 @@ export function normalizeSidecarRequest(config: SidecarConfig, input: RequestInp
     resultFormat: input.resultFormat ?? config.defaults?.result_format ?? "json",
     turnTimeoutMs: normalizePositiveInteger(input.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS, "turnTimeoutMs"),
     interruptOnTimeout: input.interruptOnTimeout ?? true,
+    preserveWorktree: input.preserveWorktree ?? true,
     context: [],
     dryRun: input.dryRun ?? false,
   };
