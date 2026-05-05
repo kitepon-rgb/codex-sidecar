@@ -1,3 +1,4 @@
+import { runReadOnlyAppServerRequest } from "./app-server-runner.js";
 import { normalizeSidecarRequest, type RequestInput } from "./presets.js";
 import { dryRunResult, errorResult, toSidecarError, unimplementedResult } from "./results.js";
 import { validateRequestSafety } from "./safety.js";
@@ -43,5 +44,9 @@ export async function runSidecarRequest(
     return dryRunResult(request);
   }
 
-  return unimplementedResult(request);
+  if (request.workflow === "work") {
+    return unimplementedResult(request);
+  }
+
+  return runReadOnlyAppServerRequest(request);
 }

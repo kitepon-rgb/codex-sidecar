@@ -53,7 +53,9 @@ export function toSidecarError(error: unknown): SidecarError {
         ? "PRESET_NOT_FOUND"
         : message.startsWith("SAFETY_REFUSAL:")
           ? "SAFETY_REFUSAL"
-          : "PROTOCOL_ERROR";
+          : message.startsWith("APP_SERVER_UNIMPLEMENTED:")
+            ? "APP_SERVER_UNIMPLEMENTED"
+            : "PROTOCOL_ERROR";
 
   return {
     code,

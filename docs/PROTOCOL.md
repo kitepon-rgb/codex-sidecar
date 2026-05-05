@@ -57,9 +57,19 @@ initialize handshake, and typed helpers for `thread/start` and `turn/start`.
 It also has pure notification helpers for assistant text deltas and
 `turn/completed` state, plus a client-side notification wait primitive for
 future real execution.
-Until thread/turn event normalization is implemented, real sidecar execution
-must still return a structured `APP_SERVER_UNIMPLEMENTED` result instead of
-silently falling back to another Codex command.
+Read-only sidecar workflows can now start a real App Server turn and normalize
+the final assistant text into `SidecarResult`. `codex_work` must still return a
+structured `APP_SERVER_UNIMPLEMENTED` result until worktree-backed execution is
+wired; it must not fall back to direct active-tree editing.
+
+Verified local read-only smoke:
+
+```bash
+node packages/cli/dist/index.js explore --project /home/kite/projects/codex-sidecar 'Reply exactly: OK'
+```
+
+This returned `status: "ok"`, `workflow: "explore"`, and `summary: "OK"` via a
+real App Server turn.
 
 ## Expected Flow
 

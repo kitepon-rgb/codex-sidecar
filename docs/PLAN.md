@@ -484,17 +484,18 @@ Exit criteria:
 
 ### Phase 6: Codex App Server Integration
 
-Status: transport foundation started. App Server command, generated protocol
-method names, newline-delimited stdio framing, request encoding, response
-parsing, initialize handshake, and typed thread/turn request helpers are
-implemented in `packages/core`.
+Status: read-only execution path started and locally smoke-tested. App Server
+command, newline-delimited stdio framing, initialize, thread/start, turn/start,
+completion waiting, and basic assistant-message normalization are implemented
+in `packages/core`.
 
 Tasks:
 
 - process lifecycle: started
 - initialize handshake: started
 - session creation: request helper started and local `thread/start` smoke passed
-- request/event protocol adapter: notification helper and wait primitive started
+- request/event protocol adapter: started
+- read-only workflow execution: started and `explore` smoke passed
 - cancellation/timeout handling
 - raw event logging
 - normalized completion result
