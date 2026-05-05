@@ -369,7 +369,7 @@ request/result snapshot.
 
 ### Phase 0: Repository Baseline
 
-Status: mostly scaffolded.
+Status: complete.
 
 Tasks:
 
@@ -388,6 +388,8 @@ Exit criteria:
 
 ### Phase 1: Config And Presets
 
+Status: complete.
+
 Tasks:
 
 - strict config schema
@@ -404,6 +406,8 @@ Exit criteria:
 - tests cover config edge cases
 
 ### Phase 2: Safety Policy
+
+Status: complete.
 
 Tasks:
 
@@ -423,6 +427,8 @@ Exit criteria:
 
 ### Phase 3: Result Contract
 
+Status: complete.
+
 Tasks:
 
 - `SidecarResult` schema
@@ -438,6 +444,8 @@ Exit criteria:
 - downstream tools can consume results without parsing text
 
 ### Phase 4: CLI
+
+Status: complete for dry-run and diagnostics.
 
 Tasks:
 
@@ -458,6 +466,8 @@ Exit criteria:
 
 ### Phase 5: MCP Server
 
+Status: descriptor/schema scaffold complete.
+
 Tasks:
 
 - MCP tool descriptors
@@ -473,6 +483,9 @@ Exit criteria:
 - `codex_work` requires explicit project config and allowed paths
 
 ### Phase 6: Codex App Server Integration
+
+Status: protocol discovery started. App Server command and generated protocol
+method names are documented; real transport framing is not implemented.
 
 Tasks:
 
@@ -490,6 +503,10 @@ Exit criteria:
 - protocol-specific code stays inside `packages/core`
 
 ### Phase 7: Worktree Execution
+
+Status: lifecycle helpers started. Worktree planning, creation, status
+collection, removal, and path-policy verification helpers exist; Codex execution
+inside the worktree is not wired yet.
 
 Tasks:
 

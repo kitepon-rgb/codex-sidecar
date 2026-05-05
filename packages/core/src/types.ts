@@ -91,7 +91,8 @@ export interface SidecarError {
     | "PRESET_NOT_FOUND"
     | "SAFETY_REFUSAL"
     | "APP_SERVER_UNIMPLEMENTED"
-    | "PROTOCOL_ERROR";
+    | "PROTOCOL_ERROR"
+    | "WORKTREE_ERROR";
   message: string;
   data?: Record<string, unknown>;
 }
@@ -155,4 +156,15 @@ export interface CostNotes {
   shouldCallCodex?: boolean;
   rationale?: string;
   estimatedInputTokens?: number;
+}
+
+export interface WorktreePlan {
+  projectRoot: string;
+  worktreePath: string;
+  baseRef: string;
+  branchName?: string;
+}
+
+export interface WorktreeState extends WorktreePlan {
+  changedFiles: string[];
 }

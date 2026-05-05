@@ -71,6 +71,19 @@ export function evaluatePathAccess(path: string, policy: PathPolicy): PathAccess
   };
 }
 
+export function assertPathsAllowed(paths: string[], policy: PathPolicy): void {
+  const refusals = paths
+    .map((path) => ({ path, access: evaluatePathAccess(path, policy) }))
+    .filter(({ access }) => !access.allowed);
+
+  if (refusals.length > 0) {
+    const details = refusals
+      .map(({ path, access }) => `${path}: ${access.reason ?? "not allowed"}`)
+      .join("; ");
+    throw new Error(`SAFETY_REFUSAL: path policy refused access: ${details}`);
+  }
+}
+
 export function normalizePolicyPatterns(patterns: string[]): string[] {
   return patterns.map((pattern) => normalizePattern(pattern));
 }

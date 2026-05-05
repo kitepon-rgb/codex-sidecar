@@ -1,4 +1,5 @@
 export * from "./types.js";
+export * from "./app-server.js";
 export * from "./config.js";
 export * from "./paths.js";
 export * from "./presets.js";
@@ -6,3 +7,4 @@ export * from "./profiles.js";
 export * from "./requests.js";
 export * from "./results.js";
 export * from "./safety.js";
+export * from "./worktree.js";

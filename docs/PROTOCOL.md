@@ -14,6 +14,29 @@ not as a general OpenAI API gateway.
   format.
 - Keep ecosystem context adapters outside the wire protocol layer.
 
+## Verified Local CLI Facts
+
+Verified against the local `codex` CLI on 2026-05-05:
+
+- `codex app-server --help` exposes the app server command directly; there is no
+  `run` subcommand.
+- `--listen` accepts `stdio://`, `unix://`, `unix://PATH`, `ws://IP:PORT`, and
+  `off`.
+- `codex app-server generate-ts --experimental --out <dir>` generates protocol
+  TypeScript bindings.
+- `codex app-server generate-json-schema --experimental --out <dir>` generates
+  JSON Schema files.
+- Generated `ClientRequest` includes at least these methods needed by the
+  sidecar:
+  - `initialize`
+  - `thread/start`
+  - `turn/start`
+  - `review/start`
+
+Until the transport framing is implemented and tested, `packages/core` should
+only expose draft App Server request builders and must continue to return a
+structured `APP_SERVER_UNIMPLEMENTED` result for real execution.
+
 ## Expected Flow
 
 1. Load `.codex-sidecar.yml` from the target project.
