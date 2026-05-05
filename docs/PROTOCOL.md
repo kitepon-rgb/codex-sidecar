@@ -55,7 +55,8 @@ Observed response shape:
 `packages/core` now owns the minimal stdio client, line parser, request encoder,
 initialize handshake, and typed helpers for `thread/start` and `turn/start`.
 It also has pure notification helpers for assistant text deltas and
-`turn/completed` state.
+`turn/completed` state, plus a client-side notification wait primitive for
+future real execution.
 Until thread/turn event normalization is implemented, real sidecar execution
 must still return a structured `APP_SERVER_UNIMPLEMENTED` result instead of
 silently falling back to another Codex command.

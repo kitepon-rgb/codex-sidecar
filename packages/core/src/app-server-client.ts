@@ -73,6 +73,13 @@ interface PendingRequest<T = unknown> {
   timer: NodeJS.Timeout;
 }
 
+interface PendingNotification {
+  predicate: (message: AppServerWireNotification) => boolean;
+  resolve: (value: AppServerWireNotification) => void;
+  reject: (error: Error) => void;
+  timer: NodeJS.Timeout;
+}
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 
 export class AppServerProtocolError extends Error {
@@ -99,6 +106,7 @@ export class AppServerClient {
   private stderrBuffer = "";
   private closed = false;
   private readonly pending = new Map<AppServerRequestId, PendingRequest>();
+  private readonly notificationWaiters = new Set<PendingNotification>();
   private readonly requestTimeoutMs: number;
   private readonly onNotification?: (message: AppServerWireNotification) => void;
   private readonly onServerRequest?: (message: AppServerWireRequest) => void;
@@ -119,10 +127,16 @@ export class AppServerClient {
     child.stderr.on("data", (chunk: string) => {
       this.stderrBuffer += chunk;
     });
-    child.once("error", (error) => this.rejectAll(new Error(`PROTOCOL_ERROR: App Server process error: ${error.message}`)));
+    child.once("error", (error) => {
+      const protocolError = new Error(`PROTOCOL_ERROR: App Server process error: ${error.message}`);
+      this.rejectAll(protocolError);
+      this.rejectNotificationWaiters(protocolError);
+    });
     child.once("exit", (code, signal) => {
       this.closed = true;
-      this.rejectAll(new Error(`PROTOCOL_ERROR: App Server exited before completing pending requests: code=${code ?? "null"} signal=${signal ?? "null"}`));
+      const error = new Error(`PROTOCOL_ERROR: App Server exited before completing pending work: code=${code ?? "null"} signal=${signal ?? "null"}`);
+      this.rejectAll(error);
+      this.rejectNotificationWaiters(error);
     });
   }
 
@@ -189,6 +203,34 @@ export class AppServerClient {
     this.child.stdin.write(encodeAppServerMessage(payload));
   }
 
+  waitForNotification(
+    predicate: (message: AppServerWireNotification) => boolean,
+    timeoutMs = this.requestTimeoutMs,
+  ): Promise<AppServerWireNotification> {
+    const existing = this.notifications.find(predicate);
+    if (existing) {
+      return Promise.resolve(existing);
+    }
+
+    if (this.closed || this.child.killed) {
+      throw new AppServerProtocolError("cannot wait for notification because App Server is closed");
+    }
+
+    return new Promise((resolve, reject) => {
+      const waiter: PendingNotification = {
+        predicate,
+        resolve,
+        reject,
+        timer: setTimeout(() => {
+          this.notificationWaiters.delete(waiter);
+          reject(new AppServerProtocolError("timeout waiting for App Server notification"));
+        }, timeoutMs),
+      };
+
+      this.notificationWaiters.add(waiter);
+    });
+  }
+
   async close(): Promise<void> {
     if (this.closed) {
       return;
@@ -196,6 +238,7 @@ export class AppServerClient {
 
     this.closed = true;
     this.rejectAll(new AppServerProtocolError("App Server client closed before completing pending requests"));
+    this.rejectNotificationWaiters(new AppServerProtocolError("App Server client closed before receiving pending notifications"));
     this.child.stdin.end();
 
     if (!this.child.killed) {
@@ -239,6 +282,7 @@ export class AppServerClient {
     if (message.kind === "notification") {
       this.notifications.push(message);
       this.onNotification?.(message);
+      this.resolveNotificationWaiters(message);
       return;
     }
 
@@ -275,10 +319,31 @@ export class AppServerClient {
   private failProtocolError(error: Error): void {
     this.onProtocolError?.(error);
     this.rejectAll(error);
+    this.rejectNotificationWaiters(error);
     this.closed = true;
 
     if (!this.child.killed) {
       this.child.kill("SIGTERM");
+    }
+  }
+
+  private resolveNotificationWaiters(message: AppServerWireNotification): void {
+    for (const waiter of this.notificationWaiters) {
+      if (!waiter.predicate(message)) {
+        continue;
+      }
+
+      clearTimeout(waiter.timer);
+      this.notificationWaiters.delete(waiter);
+      waiter.resolve(message);
+    }
+  }
+
+  private rejectNotificationWaiters(error: Error): void {
+    for (const waiter of this.notificationWaiters) {
+      clearTimeout(waiter.timer);
+      this.notificationWaiters.delete(waiter);
+      waiter.reject(error);
     }
   }
 }
