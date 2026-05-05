@@ -1,0 +1,147 @@
+#!/usr/bin/env node
+import { cwd, exit } from "node:process";
+import {
+  CONFIG_FILE,
+  WORKFLOWS,
+  buildSidecarRequest,
+  loadSidecarConfig,
+  runSidecarRequest,
+  type SidecarWorkflow,
+} from "@codex-sidecar/core";
+
+interface CliOptions {
+  workflow?: CliCommand;
+  projectRoot: string;
+  configFile: string;
+  preset?: string;
+  prompt?: string;
+  json: boolean;
+  dryRun: boolean;
+}
+
+type CliCommand = SidecarWorkflow | "diagnostics";
+
+const parsed = parseArgs(process.argv.slice(2));
+
+if (!parsed.workflow) {
+  printUsage();
+  exit(1);
+}
+
+try {
+  const config = await loadSidecarConfig(parsed.projectRoot, parsed.configFile);
+  const resolvedPreset =
+    parsed.preset ??
+    (parsed.workflow && parsed.workflow !== "diagnostics" && config.presets?.[parsed.workflow] ? parsed.workflow : undefined);
+
+  if (parsed.workflow === "diagnostics") {
+    const request = buildSidecarRequest(config, {
+      workflow: "review",
+      projectRoot: parsed.projectRoot,
+      preset: resolvedPreset,
+      prompt: parsed.prompt,
+      dryRun: true,
+    });
+
+    printJson({
+      status: "ok",
+      configFile: parsed.configFile,
+      projectRoot: parsed.projectRoot,
+      normalizedRequest: request,
+    });
+    exit(0);
+  }
+
+  const result = await runSidecarRequest(config, {
+    workflow: parsed.workflow,
+    projectRoot: parsed.projectRoot,
+    preset: resolvedPreset,
+    prompt: parsed.prompt,
+    dryRun: parsed.dryRun,
+  });
+
+  printJson(result);
+  exit(result.status === "failed" || result.status === "refused" ? 1 : 0);
+} catch (error) {
+  printJson({
+    status: "failed",
+    error: error instanceof Error ? error.message : String(error),
+  });
+  exit(1);
+}
+
+function parseArgs(args: string[]): CliOptions {
+  const options: CliOptions = {
+    projectRoot: cwd(),
+    configFile: CONFIG_FILE,
+    json: true,
+    dryRun: false,
+  };
+  const promptParts: string[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (index === 0 && isCommand(arg)) {
+      options.workflow = arg;
+      continue;
+    }
+
+    if (arg === "--project") {
+      options.projectRoot = requireValue(args, (index += 1), "--project");
+      continue;
+    }
+
+    if (arg === "--config") {
+      options.configFile = requireValue(args, (index += 1), "--config");
+      continue;
+    }
+
+    if (arg === "--preset") {
+      options.preset = requireValue(args, (index += 1), "--preset");
+      continue;
+    }
+
+    if (arg === "--dry-run") {
+      options.dryRun = true;
+      continue;
+    }
+
+    if (arg === "--json") {
+      options.json = true;
+      continue;
+    }
+
+    if (arg.startsWith("--")) {
+      throw new Error(`Unknown option: ${arg}`);
+    }
+
+    promptParts.push(arg);
+  }
+
+  options.prompt = promptParts.length > 0 ? promptParts.join(" ") : undefined;
+  return options;
+}
+
+function isCommand(value: string): value is CliCommand {
+  return value === "diagnostics" || (WORKFLOWS as readonly string[]).includes(value);
+}
+
+function requireValue(args: string[], index: number, option: string): string {
+  const value = args[index];
+
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${option} requires a value`);
+  }
+
+  return value;
+}
+
+function printUsage(): void {
+  console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics> [options] [prompt]`);
+  console.error("Options: --project <dir> --config <file> --preset <name> --dry-run --json");
+}
+
+function printJson(value: unknown): void {
+  console.log(JSON.stringify(value, null, 2));
+}

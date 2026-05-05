@@ -1,0 +1,55 @@
+project: codex-sidecar
+
+defaults:
+  readonly: true
+  result_format: json
+
+safety_profile: node-mcp-service
+
+allowed_paths:
+  - AGENTS.md
+  - README.md
+  - docs/
+  - examples/
+  - packages/
+  - package.json
+  - pnpm-workspace.yaml
+  - tsconfig.base.json
+
+deny_paths:
+  - .env
+  - .env.*
+  - "**/*.key"
+  - "**/*.pem"
+  - "**/*.sqlite"
+  - "**/*.db"
+  - "**/dist/**"
+  - "**/node_modules/**"
+
+presets:
+  review:
+    workflow: review
+    readonly: true
+    prompt: "Review this change for regressions, missing tests, and contract drift."
+  explore:
+    workflow: explore
+    readonly: true
+    prompt: "Answer with codebase evidence and file references."
+  opinion:
+    workflow: opinion
+    readonly: true
+    prompt: "Challenge this design and identify hidden assumptions."
+  risk:
+    workflow: risk-check
+    readonly: true
+    focus:
+      - mcp
+      - app-server
+      - safety
+      - worktree
+      - result-contract
+  work:
+    workflow: work
+    readonly: false
+    require_worktree: true
+    prompt: "Implement a small scoped fix within allowed_paths."

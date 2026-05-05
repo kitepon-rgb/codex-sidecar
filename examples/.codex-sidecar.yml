@@ -1,0 +1,45 @@
+project: example-project
+
+defaults:
+  role: reviewer
+  readonly: true
+  result_format: json
+
+safety_profile: generic
+
+allowed_paths:
+  - server/
+  - docs/
+
+deny_paths:
+  - .env
+  - .env.*
+  - "**/*.key"
+  - "**/*.pem"
+
+presets:
+  review:
+    workflow: review
+    readonly: true
+    prompt: "Review this change for regression risks and missing tests."
+  explore:
+    workflow: explore
+    readonly: true
+    prompt: "Answer with codebase evidence and file references."
+  opinion:
+    workflow: opinion
+    readonly: true
+    prompt: "Challenge this design and identify hidden assumptions."
+  risk:
+    workflow: risk-check
+    readonly: true
+    focus:
+      - mcp
+      - oauth
+      - secrets
+      - hooks
+  work:
+    workflow: work
+    readonly: false
+    require_worktree: true
+    prompt: "Implement a small fix within allowed_paths."
