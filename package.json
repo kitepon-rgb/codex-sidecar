@@ -1,8 +1,9 @@
 {
   "name": "codex-sidecar",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Shared Codex sidecar agent bridge for reviews, exploration, and scoped work.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "corepack pnpm -r build",
