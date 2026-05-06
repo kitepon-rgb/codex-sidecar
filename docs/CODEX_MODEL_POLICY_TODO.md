@@ -145,9 +145,15 @@ configuration so callers can tell whether sidecar actually selected a model.
   `~/.codex/config.toml`.
 - [x] `codex-sidecar diagnostics` shows explicit resolved model policy for a
   configured preset or CLI override.
-- [ ] Real App Server logs prove the intended model was used.
-- [ ] Caveat automatic hook advisory uses `gpt-5.4-mini` through an explicit sidecar
+- [x] Real App Server logs prove the intended model was used.
+- [x] Caveat automatic hook advisory uses `gpt-5.4-mini` through an explicit sidecar
   preset, not by relying on global Codex defaults.
+
+Verified on 2026-05-06 with Caveat hook advisory smoke:
+`rawEventLogRef` recorded App Server startup args containing
+`model="gpt-5.4-mini"` and `model_reasoning_effort="low"`, and the
+`thread/start` response reported `model: "gpt-5.4-mini"` and
+`reasoningEffort: "low"`.
 
 ## Related Docs
 
