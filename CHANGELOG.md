@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.0] — 2026-05-06
+
+### Added
+- Add explicit Codex model policy fields for CLI, MCP, config defaults, and presets.
+- Pass resolved model and reasoning effort through Codex App Server startup.
+- Report resolved model policy in diagnostics, lifecycle logs, and structured results.
+
+### Verified
+- Caveat hook advisory smoke verified `gpt-5.4-mini` with low reasoning effort in the raw App Server log.
+
 ## [0.2.2] — 2026-05-05
 
 ### Fixed

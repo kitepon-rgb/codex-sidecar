@@ -48,7 +48,7 @@ const toolInputSchema = {
 
 export async function startCodexSidecarMcpStdioServer(): Promise<void> {
   const server = new McpServer(
-    { name: "codex-sidecar", version: "0.2.0" },
+    { name: "codex-sidecar", version: "0.3.0" },
     { capabilities: { tools: {} } },
   );
 
