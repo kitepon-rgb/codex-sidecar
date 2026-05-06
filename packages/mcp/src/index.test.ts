@@ -29,6 +29,14 @@ test("tool descriptors expose timeout, cancellation, and model policy input sche
   assert.deepEqual(modelReasoningEffort.enum, ["low", "medium", "high", "xhigh"]);
 });
 
+test("tool descriptors expose codex_auditor as a read-only workflow", () => {
+  const descriptor = toolDescriptors.find((tool) => tool.name === "codex_auditor");
+  assert.ok(descriptor);
+  assert.equal(descriptor.workflow, "auditor");
+  assert.equal(descriptor.readonly, true);
+  assert.equal(descriptor.requiresExplicitOptIn, false);
+});
+
 test("handleCodexSidecarToolCall runs read-only tools through core", async () => {
   let capturedInput: RequestInput | undefined;
   const result = await handleCodexSidecarToolCall(
@@ -74,6 +82,34 @@ test("handleCodexSidecarToolCall runs read-only tools through core", async () =>
   assert.equal(result.isError, false);
   assert.equal(result.structuredContent.status, "ok");
   assert.deepEqual(JSON.parse(result.content[0]?.text ?? "{}"), result.structuredContent);
+});
+
+test("handleCodexSidecarToolCall routes codex_auditor through core", async () => {
+  let capturedInput: RequestInput | undefined;
+  const result = await handleCodexSidecarToolCall(
+    "codex_auditor",
+    {
+      projectRoot: "/repo",
+      prompt: "Judge whether Caveat should be called.",
+      dryRun: true,
+    },
+    {
+      loadConfig: async () => config,
+      runRequest: async (_config, input) => {
+        capturedInput = input;
+        return {
+          ...okResult(input),
+          pass: false,
+          missingTools: [{ name: "mcp__caveat__caveat_search", reason: "Known traps requested." }],
+        };
+      },
+    },
+  );
+
+  assert.equal(capturedInput?.workflow, "auditor");
+  assert.equal(result.isError, false);
+  assert.equal(result.structuredContent.pass, false);
+  assert.equal(result.structuredContent.missingTools?.[0]?.name, "mcp__caveat__caveat_search");
 });
 
 test("handleCodexSidecarToolCall refuses codex_work without explicit opt-in", async () => {

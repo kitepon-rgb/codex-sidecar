@@ -1,10 +1,10 @@
-export const WORKFLOWS = ["review", "explore", "work", "opinion", "risk-check"] as const;
+export const WORKFLOWS = ["review", "explore", "work", "opinion", "risk-check", "auditor"] as const;
 
 export const DEFAULT_TURN_TIMEOUT_MS = 10 * 60_000;
 
 export type SidecarWorkflow = (typeof WORKFLOWS)[number];
 
-export type SidecarRole = "reviewer" | "explorer" | "worker" | "critic" | "risk-analyst";
+export type SidecarRole = "reviewer" | "explorer" | "worker" | "critic" | "risk-analyst" | "auditor";
 
 export type ResultFormat = "json" | "json-with-prose";
 
@@ -126,6 +126,8 @@ export interface SidecarResult {
   recommendedNextAction: string;
   findings?: SidecarFinding[];
   risks?: SidecarRisk[];
+  pass?: boolean;
+  missingTools?: SidecarMissingTool[];
   openQuestions?: string[];
   missingTests?: string[];
   residualRisks?: string[];
@@ -165,6 +167,11 @@ export interface SidecarRisk {
   suggestedVerification?: string;
   confidence: Confidence;
   basis: EvidenceBasis;
+}
+
+export interface SidecarMissingTool {
+  name: string;
+  reason: string;
 }
 
 export interface SourceBoundary {

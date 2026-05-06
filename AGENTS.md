@@ -38,6 +38,7 @@ context adapter とする。
 - CLI workflow `work` / MCP tool `codex_work`: isolated git worktree 上での小さな修正
 - CLI workflow `opinion` / MCP tool `codex_opinion`: 設計案への反対意見、見落とし、代替案の提示
 - CLI workflow `risk-check` / MCP tool `codex_risk_check`: OAuth / MCP / secrets / Docker / hooks / CI などの重点リスク確認
+- CLI workflow `auditor` / MCP tool `codex_auditor`: primary tool-use auditor 用の `pass` / `missingTools` 判定
 
 非目的:
 
@@ -50,9 +51,10 @@ context adapter とする。
 
 - `packages/core/`: config loading, safety policy, App Server/session handling,
   worktree isolation, normalized results
-- `packages/cli/`: `codex-sidecar review|explore|work|opinion|risk-check`
+- `packages/cli/`: `codex-sidecar review|explore|work|opinion|risk-check|auditor`
 - `packages/mcp/`: Claude Code などの MCP client から呼ぶ `codex_review` /
-  `codex_explore` / `codex_work` / `codex_opinion` / `codex_risk_check`
+  `codex_explore` / `codex_work` / `codex_opinion` / `codex_risk_check` /
+  `codex_auditor`
 - `docs/`: 設計判断、protocol 方針、safety model
 - `examples/`: consuming repo 側に置く `.codex-sidecar.yml` の例
 

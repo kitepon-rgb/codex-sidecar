@@ -22,6 +22,7 @@ export const TOOL_NAMES = [
   "codex_work",
   "codex_opinion",
   "codex_risk_check",
+  "codex_auditor",
 ] as const;
 
 export type CodexSidecarToolName = (typeof TOOL_NAMES)[number];
@@ -129,6 +130,7 @@ export const toolDescriptors: McpToolDescriptor[] = [
   descriptor("codex_work", "work", "Ask Codex to implement a small scoped change in an isolated worktree.", false),
   descriptor("codex_opinion", "opinion", "Ask Codex for a design second opinion and strongest objections.", true),
   descriptor("codex_risk_check", "risk-check", "Ask Codex to focus on high-risk areas such as MCP, OAuth, secrets, hooks, Docker, and CI.", true),
+  descriptor("codex_auditor", "auditor", "Ask Codex for a primary tool-use auditor judgment with pass and missingTools.", true),
 ];
 
 export function workflowForTool(toolName: CodexSidecarToolName): SidecarWorkflow {

@@ -95,6 +95,7 @@ Provides local commands:
 - `codex-sidecar work`
 - `codex-sidecar opinion`
 - `codex-sidecar risk-check`
+- `codex-sidecar auditor`
 
 The CLI should stay thin and delegate policy decisions to `core`.
 
@@ -118,6 +119,7 @@ Provides an MCP server for Claude Code:
 - `codex_work`
 - `codex_opinion`
 - `codex_risk_check`
+- `codex_auditor`
 
 The MCP layer exposes stable tool schemas and translates calls into the same
 `core` request types used by the CLI. Read-only tools use the shared core

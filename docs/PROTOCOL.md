@@ -124,6 +124,7 @@ Workflow-specific required fields:
 
 - `review`: `findings`, `missingTests`, `residualRisks`
 - `risk-check`: `risks`
+- `auditor`: `pass`, `missingTools`
 - `opinion`: `recommendation`, `objections`, `assumptions`, `failureModes`
 - `explore`: answer text in `summary`, citations in `fileReferences`
 - `work`: `tests`, `risks`

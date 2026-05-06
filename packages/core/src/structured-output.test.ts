@@ -86,6 +86,50 @@ test("parseStructuredSidecarOutput requires opinion fields", () => {
   assert.equal(output.failureModes?.[0], "The schema may drift without snapshots.");
 });
 
+test("parseStructuredSidecarOutput requires auditor pass and missingTools", () => {
+  const output = parseStructuredSidecarOutput(
+    { ...baseRequest, workflow: "auditor" },
+    JSON.stringify({
+      summary: "Caveat should be checked.",
+      confidence: { level: "high" },
+      recommendedNextAction: "Call the missing tool before answering.",
+      openQuestions: [],
+      fileReferences: [],
+      sourceBoundaries: [],
+      pass: false,
+      missingTools: [
+        {
+          name: "mcp__caveat__caveat_search",
+          reason: "The user asks for past known traps.",
+        },
+      ],
+    }),
+  );
+
+  assert.equal(output.pass, false);
+  assert.equal(output.missingTools?.[0]?.name, "mcp__caveat__caveat_search");
+});
+
+test("parseStructuredSidecarOutput rejects invalid auditor fields", () => {
+  assert.throws(
+    () =>
+      parseStructuredSidecarOutput(
+        { ...baseRequest, workflow: "auditor" },
+        JSON.stringify({
+          summary: "Bad auditor output.",
+          confidence: { level: "medium" },
+          recommendedNextAction: "Retry.",
+          openQuestions: [],
+          fileReferences: [],
+          sourceBoundaries: [],
+          pass: "no",
+          missingTools: [{ name: "mcp__caveat__caveat_search" }],
+        }),
+      ),
+    /PROTOCOL_ERROR: assistant structured output invalid: pass must be a boolean; missingTools\[0\]\.reason must be a non-empty string/,
+  );
+});
+
 test("parseStructuredSidecarOutput rejects missing workflow-specific fields", () => {
   assert.throws(
     () =>

@@ -81,6 +81,7 @@ inspect the diff before applying anything.
 | `explore` | `codex_explore` | Investigate a codebase question | No | `summary`, `fileReferences` |
 | `opinion` | `codex_opinion` | Challenge a plan or design | No | `recommendation`, `objections`, `assumptions` |
 | `risk-check` | `codex_risk_check` | Focus on secrets, MCP, OAuth, hooks, Docker, CI | No | `risks`, `sourceBoundaries` |
+| `auditor` | `codex_auditor` | Return a primary tool-use auditor judgment | No | `pass`, `missingTools` |
 | `work` | `codex_work` | Implement a small scoped change | Isolated worktree only | `changedFiles`, `tests`, `worktreePath` |
 
 Every workflow returns one `SidecarResult` JSON object. Downstream tools should

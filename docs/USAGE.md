@@ -168,7 +168,7 @@ is resolved, those flags are omitted.
 The CLI shape is:
 
 ```bash
-codex-sidecar <review|explore|work|opinion|risk-check|diagnostics> [options] [prompt]
+codex-sidecar <review|explore|work|opinion|risk-check|auditor|diagnostics> [options] [prompt]
 ```
 
 The local development equivalent is:
@@ -249,7 +249,7 @@ codex-sidecar work \
 
 ## MCP Tools
 
-`packages/mcp` exposes five tool descriptors backed by the same core execution
+`packages/mcp` exposes six tool descriptors backed by the same core execution
 path as the CLI:
 
 - `codex_review`
@@ -257,6 +257,7 @@ path as the CLI:
 - `codex_work`
 - `codex_opinion`
 - `codex_risk_check`
+- `codex_auditor`
 
 Common input fields:
 
@@ -431,6 +432,7 @@ Workflow-specific fields:
 - `explore`: answer in `summary`, citations in `fileReferences`.
 - `opinion`: `recommendation`, `objections`, `assumptions`, `failureModes`.
 - `risk-check`: `risks`.
+- `auditor`: `pass`, `missingTools`.
 - `work`: `changedFiles`, `tests`, `risks`, `worktreePath`,
   `worktreePreserved`.
 

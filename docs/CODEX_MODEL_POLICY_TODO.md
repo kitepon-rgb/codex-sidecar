@@ -23,7 +23,7 @@ Use these as the initial Caveat policy unless newer measurement disproves them:
 
 | Workload | Model | Reasoning effort | Rationale |
 | --- | --- | --- | --- |
-| automatic hook advisory | `gpt-5.4-mini` | `low` or `medium` | Short structured second opinion; hook path should be responsive and cost-aware. |
+| automatic hook advisory / auditor | `gpt-5.4-mini` | `low` or `medium` | Short structured second opinion or primary tool-use judgment; hook path should be responsive and cost-aware. |
 | smoke turns | `gpt-5.4-mini` | `low` | Proves App Server wiring, not deep reasoning. Diagnostics should display policy without starting a model turn. |
 | manual explore | `gpt-5.4-mini` | `medium` | Codebase evidence lookup and concise answers. |
 | review / risk-check / opinion | `gpt-5.5` | `medium` or `high` | Higher judgment value and lower frequency. |

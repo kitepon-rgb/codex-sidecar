@@ -4,6 +4,7 @@ import type {
   FileReference,
   Severity,
   SidecarFinding,
+  SidecarMissingTool,
   SidecarRequest,
   SidecarResult,
   SidecarRisk,
@@ -17,6 +18,8 @@ interface StructuredOutput {
   recommendedNextAction: string;
   findings?: SidecarFinding[];
   risks?: SidecarRisk[];
+  pass?: boolean;
+  missingTools?: SidecarMissingTool[];
   openQuestions?: string[];
   missingTests?: string[];
   residualRisks?: string[];
@@ -105,6 +108,10 @@ export function parseStructuredSidecarOutput(request: SidecarRequest, assistantT
     case "risk-check":
       structured.risks = parseRisks(output.risks, "risks", errors, true);
       break;
+    case "auditor":
+      structured.pass = parseBoolean(output.pass, "pass", errors);
+      structured.missingTools = parseMissingTools(output.missingTools, "missingTools", errors, true);
+      break;
     case "opinion":
       structured.recommendation = requireString(output, "recommendation", errors);
       structured.objections = parseStringArray(output.objections, "objections", errors, true);
@@ -138,6 +145,8 @@ export function mergeStructuredOutput(
     recommendedNextAction: output.recommendedNextAction,
     findings: output.findings,
     risks: output.risks,
+    pass: output.pass,
+    missingTools: output.missingTools,
     openQuestions: output.openQuestions,
     missingTests: output.missingTests,
     residualRisks: output.residualRisks,
@@ -172,6 +181,13 @@ function workflowSchema(workflow: SidecarRequest["workflow"]): string {
       return [
         "Risk-check workflow fields:",
         "- risks: Array<{ severity, title, detail, affectedFiles, suggestedVerification?: string, confidence, basis }>",
+      ].join("\n");
+    case "auditor":
+      return [
+        "Auditor workflow fields:",
+        "- pass: boolean",
+        "- missingTools: Array<{ name: string, reason: string }>",
+        "Use only exact tool names from the provided catalog/context. If no tool clearly applies, set pass=true and missingTools=[].",
       ].join("\n");
     case "opinion":
       return [
@@ -241,6 +257,30 @@ function parseStringArray(value: unknown, path: string, errors: string[], requir
   }
 
   return value;
+}
+
+function parseBoolean(value: unknown, path: string, errors: string[]): boolean {
+  if (typeof value !== "boolean") {
+    errors.push(`${path} must be a boolean`);
+    return false;
+  }
+
+  return value;
+}
+
+function parseMissingTools(value: unknown, path: string, errors: string[], required = false): SidecarMissingTool[] | undefined {
+  const items = parseArray(value, path, errors, required);
+  if (!items) {
+    return undefined;
+  }
+
+  return items.map((item, index) => {
+    const record = assertRecord(item, `${path}[${index}]`, errors);
+    return {
+      name: requireString(record, "name", errors, `${path}[${index}].name`),
+      reason: requireString(record, "reason", errors, `${path}[${index}].reason`),
+    };
+  });
 }
 
 function parseFileReferences(value: unknown, path: string, errors: string[], required = false): FileReference[] | undefined {

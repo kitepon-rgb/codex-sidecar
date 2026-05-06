@@ -18,11 +18,17 @@ test("assertSidecarConfig accepts a minimal valid config", () => {
         model: "gpt-5.5",
         model_reasoning_effort: "high",
       },
+      auditor: {
+        workflow: "auditor",
+        readonly: true,
+        model_reasoning_effort: "low",
+      },
     },
   });
 
   assert.equal(config.project, "example");
   assert.equal(config.presets?.review.workflow, "review");
+  assert.equal(config.presets?.auditor.workflow, "auditor");
   assert.equal(config.defaults?.model, "gpt-5.4-mini");
   assert.equal(config.presets?.review.model_reasoning_effort, "high");
 });
