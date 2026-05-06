@@ -2,7 +2,7 @@ import type { AppServerThreadStartResponse, AppServerTurnStartResponse } from ".
 import { AppServerClient, type AppServerInitializeResult, type AppServerWireNotification } from "./app-server-client.js";
 import { collectAgentMessageText, findTurnCompletion } from "./app-server-events.js";
 import { createAppServerEventLogger, type AppServerEventLogger } from "./app-server-logs.js";
-import { errorResult, toSidecarError } from "./results.js";
+import { errorResult, modelPolicyInfo, toSidecarError } from "./results.js";
 import { mergeStructuredOutput, parseStructuredSidecarOutput } from "./structured-output.js";
 import type { SidecarRequest, SidecarResult } from "./types.js";
 
@@ -53,6 +53,9 @@ export async function runReadOnlyAppServerRequest(
         projectRoot: request.projectRoot,
         readonly: request.readonly,
         resultFormat: request.resultFormat,
+        model: request.model,
+        modelReasoningEffort: request.modelReasoningEffort,
+        modelPolicySource: request.model || request.modelReasoningEffort ? "explicit" : "inherited",
         turnTimeoutMs: request.turnTimeoutMs,
         interruptOnTimeout: request.interruptOnTimeout,
       },
@@ -61,6 +64,8 @@ export async function runReadOnlyAppServerRequest(
     client =
       options.client ??
       AppServerClient.start({
+        model: request.model,
+        modelReasoningEffort: request.modelReasoningEffort,
         onLogEntry: (entry) => logger?.write(entry),
       });
     ownsClient = options.client === undefined;
@@ -146,6 +151,7 @@ export async function runReadOnlyAppServerRequest(
       status: "ok",
       workflow: request.workflow,
       normalizedRequest: request,
+      modelPolicy: modelPolicyInfo(request),
       rawEventLogRef: logger.ref,
     });
   } catch (error) {

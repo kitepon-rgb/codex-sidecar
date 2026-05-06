@@ -1,4 +1,4 @@
-import type { SidecarRequest } from "./types.js";
+import type { ModelReasoningEffort, SidecarRequest } from "./types.js";
 import { buildStructuredOutputPrompt } from "./structured-output.js";
 
 export const APP_SERVER_PROTOCOL_METHODS = {
@@ -12,6 +12,12 @@ export const APP_SERVER_PROTOCOL_METHODS = {
 export interface AppServerCommand {
   command: string;
   args: string[];
+}
+
+export interface AppServerCommandOptions {
+  listen?: string;
+  model?: string;
+  modelReasoningEffort?: ModelReasoningEffort;
 }
 
 export interface AppServerInitializeDraft {
@@ -79,7 +85,14 @@ export interface AppServerTurnInterruptDraft {
   };
 }
 
-export function buildAppServerCommand(listen = "stdio://"): AppServerCommand {
+export function buildAppServerCommand(options: AppServerCommandOptions | string = {}): AppServerCommand {
+  const normalizedOptions = typeof options === "string" ? { listen: options } : options;
+  const listen = normalizedOptions.listen ?? "stdio://";
+  const modelArgs = [
+    ...(normalizedOptions.model ? ["-c", `model=${tomlString(normalizedOptions.model)}`] : []),
+    ...(normalizedOptions.modelReasoningEffort ? ["-c", `model_reasoning_effort=${tomlString(normalizedOptions.modelReasoningEffort)}`] : []),
+  ];
+
   return {
     command: process.env.CODEX_BINARY ?? "codex",
     args: [
@@ -88,10 +101,15 @@ export function buildAppServerCommand(listen = "stdio://"): AppServerCommand {
       "mcp_servers={}",
       "-c",
       "plugins={}",
+      ...modelArgs,
       "--listen",
       listen,
     ],
   };
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
 }
 
 export function buildInitializeDraft(version = "0.0.0"): AppServerInitializeDraft {

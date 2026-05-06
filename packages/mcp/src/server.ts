@@ -16,6 +16,11 @@ const toolInputSchema = {
     .describe("Optional config filename relative to projectRoot. Defaults to .codex-sidecar.yml."),
   prompt: z.string().optional().describe("User request or task-specific instruction for Codex."),
   preset: z.string().optional().describe("Optional preset name from .codex-sidecar.yml."),
+  model: z.string().min(1).optional().describe("Explicit Codex model to pass to App Server startup."),
+  modelReasoningEffort: z
+    .enum(["low", "medium", "high", "xhigh"])
+    .optional()
+    .describe("Explicit Codex model reasoning effort to pass to App Server startup."),
   dryRun: z.boolean().optional().describe("Normalize and safety-check the request without calling Codex."),
   turnTimeoutMs: z
     .number()

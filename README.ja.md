@@ -14,6 +14,7 @@
 `codex-sidecar` は、Claude Code や MCP client、hook、その他の自動化から Codex を呼ぶための共通実行レイヤーです。Codex を主役に置き換えるのではなく、別視点のレビュー、調査、設計への反対意見、限定的な修正能力を安全な境界つきで差し込みます。
 
 OpenAI API gateway でも画像生成 proxy でもありません。Codex App Server の実行、結果 JSON の正規化、raw log、worktree 隔離、安全 policy をまとめて扱うための土台です。
+Codex の既存 model 設定を継承することも、workflow ごとに明示的な model policy を指定することもできます。
 
 ## 30 秒で試す
 
@@ -36,7 +37,9 @@ corepack pnpm build
 ```bash
 codex-sidecar diagnostics \
   --project /path/to/project \
-  --preset review
+  --preset review \
+  --model gpt-5.5 \
+  --model-reasoning-effort medium
 ```
 
 Codex に read-only 調査を依頼:

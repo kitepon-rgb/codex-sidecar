@@ -34,6 +34,8 @@ export async function runSidecarRequest(
       allowedPaths: input.allowedPaths ?? [],
       denyPaths: input.denyPaths ?? [],
       safetyProfile: input.safetyProfile ?? "generic",
+      model: input.model,
+      modelReasoningEffort: input.modelReasoningEffort,
       resultFormat: input.resultFormat ?? "json",
       turnTimeoutMs: input.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS,
       interruptOnTimeout: input.interruptOnTimeout ?? true,

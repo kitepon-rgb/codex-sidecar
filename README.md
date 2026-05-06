@@ -16,6 +16,8 @@
 developer workflow. It gives humans, Claude Code, MCP clients, hooks, and other
 automation a stable way to ask Codex for a second opinion while preserving
 machine-readable results, raw App Server diagnostics, and safety boundaries.
+Callers can let Codex inherit its configured model or set an explicit
+per-request/preset model policy when a workflow needs one.
 
 It is not an OpenAI API gateway. It is not an image generation proxy. Its job is
 to make Codex useful as a controlled companion process inside real repositories.
@@ -46,7 +48,9 @@ Check how a target project config resolves:
 ```bash
 codex-sidecar diagnostics \
   --project /path/to/project \
-  --preset review
+  --preset review \
+  --model gpt-5.5 \
+  --model-reasoning-effort medium
 ```
 
 Ask Codex to explore a codebase through the real App Server:

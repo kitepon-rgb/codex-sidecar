@@ -83,6 +83,28 @@ test("buildAppServerCommand disables inherited MCP servers and plugins", () => {
   process.env.CODEX_BINARY = previous;
 });
 
+test("buildAppServerCommand appends explicit model policy overrides", () => {
+  const command = buildAppServerCommand({
+    listen: "stdio://",
+    model: "gpt-5.5",
+    modelReasoningEffort: "high",
+  });
+
+  assert.deepEqual(command.args, [
+    "app-server",
+    "-c",
+    "mcp_servers={}",
+    "-c",
+    "plugins={}",
+    "-c",
+    'model="gpt-5.5"',
+    "-c",
+    'model_reasoning_effort="high"',
+    "--listen",
+    "stdio://",
+  ]);
+});
+
 test("buildAppServerCommand can use an explicit Codex binary", () => {
   const previous = process.env.CODEX_BINARY;
   process.env.CODEX_BINARY = "/opt/codex";

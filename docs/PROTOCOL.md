@@ -163,6 +163,28 @@ CLI callers can set these with `--turn-timeout-ms <ms>` and
 `--no-interrupt-on-timeout`. MCP tool descriptors expose the same fields as
 `turnTimeoutMs` and `interruptOnTimeout`.
 
+## Model Policy
+
+`SidecarRequest.model` and `SidecarRequest.modelReasoningEffort` are optional
+sidecar-selected Codex App Server policy fields. They are populated only when
+the caller, preset, or config defaults explicitly set policy. When both fields
+are absent, sidecar does not pass model overrides and Codex may inherit model
+configuration from the isolated `CODEX_HOME`.
+
+Resolution order is:
+
+1. CLI/MCP explicit input
+2. preset-level config
+3. `defaults` config
+
+Diagnostics and `SidecarResult` include `modelPolicy.source` as `explicit` when
+either field is resolved, otherwise `inherited`. Raw lifecycle logs record the
+resolved fields and the same source label.
+
+Allowed `modelReasoningEffort` values are `low`, `medium`, `high`, and `xhigh`.
+No `none` value is accepted; omit the field when no explicit reasoning effort
+should be selected.
+
 ## Worktree-Backed Work
 
 `codex_work` creates an isolated git worktree before calling Codex App Server

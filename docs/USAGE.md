@@ -58,6 +58,9 @@ project: example-project
 defaults:
   readonly: true
   result_format: json
+  # Optional: set these only when sidecar should explicitly choose Codex policy.
+  # model: gpt-5.4-mini
+  # model_reasoning_effort: medium
 
 safety_profile: generic
 
@@ -89,8 +92,8 @@ presets:
 ```
 
 Use `diagnostics` before the first real run. It resolves presets, safety
-profile deny patterns, path policies, timeouts, and worktree settings without
-calling Codex:
+profile deny patterns, path policies, model policy, timeouts, and worktree
+settings without calling Codex:
 
 ```bash
 codex-sidecar diagnostics \
@@ -118,9 +121,47 @@ Example diagnostic output shape:
     "interruptOnTimeout": true,
     "preserveWorktree": true,
     "dryRun": true
+  },
+  "modelPolicy": {
+    "source": "inherited"
   }
 }
 ```
+
+## Model Policy
+
+By default, `codex-sidecar` does not choose a model. The isolated `CODEX_HOME`
+keeps inherited Codex model settings, while MCP servers and plugins are still
+cleared for sidecar isolation.
+
+Set model policy only when the caller wants an explicit Codex App Server
+override. Resolution order is CLI/MCP input, then preset, then `defaults`:
+
+```yaml
+defaults:
+  model: gpt-5.4-mini
+  model_reasoning_effort: medium
+
+presets:
+  risk:
+    workflow: risk-check
+    model: gpt-5.5
+    model_reasoning_effort: high
+```
+
+CLI callers can override the resolved policy:
+
+```bash
+codex-sidecar diagnostics \
+  --project /path/to/project \
+  --preset risk \
+  --model gpt-5.5 \
+  --model-reasoning-effort high
+```
+
+When explicit policy is resolved, App Server startup receives `-c
+model="<model>"` and/or `-c model_reasoning_effort="<effort>"`. When no policy
+is resolved, those flags are omitted.
 
 ## CLI Workflows
 
@@ -142,6 +183,9 @@ Options:
 - `--config <file>`: config filename relative to `projectRoot`. Defaults to
   `.codex-sidecar.yml`.
 - `--preset <name>`: named preset from config.
+- `--model <model>`: explicit Codex model override for this request.
+- `--model-reasoning-effort <effort>`: explicit reasoning effort override.
+  Accepted values are `low`, `medium`, `high`, and `xhigh`.
 - `--dry-run`: normalize and safety-check without calling Codex.
 - `--turn-timeout-ms <ms>`: maximum App Server turn wait time.
 - `--no-interrupt-on-timeout`: do not send `turn/interrupt` after timeout.

@@ -129,7 +129,7 @@ export function parseStructuredSidecarOutput(request: SidecarRequest, assistantT
 export function mergeStructuredOutput(
   request: SidecarRequest,
   output: StructuredOutput,
-  base: Pick<SidecarResult, "status" | "workflow" | "rawEventLogRef" | "normalizedRequest">,
+  base: Pick<SidecarResult, "status" | "workflow" | "rawEventLogRef" | "normalizedRequest" | "modelPolicy">,
 ): SidecarResult {
   return {
     ...base,

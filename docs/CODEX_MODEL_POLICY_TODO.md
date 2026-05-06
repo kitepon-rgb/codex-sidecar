@@ -72,29 +72,29 @@ configuration so callers can tell whether sidecar actually selected a model.
 
 ## Sidecar Tasks
 
-- [ ] Add `model?: string` and `modelReasoningEffort?: string` to
+- [x] Add `model?: string` and `modelReasoningEffort?: string` to
   `SidecarRequest`.
-- [ ] Add `model?: string` and `model_reasoning_effort?: string` to
+- [x] Add `model?: string` and `model_reasoning_effort?: string` to
   `SidecarDefaults` and `SidecarPreset`.
-- [ ] Validate model policy fields in `packages/core/src/config.ts`.
+- [x] Validate model policy fields in `packages/core/src/config.ts`.
   - `model` must be a non-empty string when present.
   - `model_reasoning_effort` should initially accept `low`, `medium`, `high`,
     and `xhigh`; omit it when no explicit effort should be set.
-- [ ] Resolve model policy in `normalizeSidecarRequest`.
-- [ ] Preserve model fields in error-path `SidecarRequest` construction.
-- [ ] Add CLI flags:
+- [x] Resolve model policy in `normalizeSidecarRequest`.
+- [x] Preserve model fields in error-path `SidecarRequest` construction.
+- [x] Add CLI flags:
   - `--model <model>`
   - `--model-reasoning-effort <effort>`
-- [ ] Add MCP schema fields for the same options.
-- [ ] Pass resolved values to Codex App Server startup with config overrides:
+- [x] Add MCP schema fields for the same options.
+- [x] Pass resolved values to Codex App Server startup with config overrides:
   - `-c model="<model>"`
   - `-c model_reasoning_effort="<effort>"`
-- [ ] Include resolved model policy in lifecycle logs and `normalizedRequest`.
-- [ ] Add diagnostics metadata that reports whether the model policy is
+- [x] Include resolved model policy in lifecycle logs and `normalizedRequest`.
+- [x] Add diagnostics metadata that reports whether the model policy is
   `explicit` or inherited from Codex config.
-- [ ] Keep isolated `CODEX_HOME` passthrough for inherited config, but ensure
+- [x] Keep isolated `CODEX_HOME` passthrough for inherited config, but ensure
   explicit sidecar config wins over inherited config.
-- [ ] Update README / USAGE examples once behavior is implemented.
+- [x] Update README / USAGE examples once behavior is implemented.
 
 ## Caveat Tasks
 
@@ -114,25 +114,24 @@ configuration so callers can tell whether sidecar actually selected a model.
 
 ## Tests
 
-- [ ] Config parser accepts defaults and preset model policy.
-- [ ] Config parser rejects empty model and invalid effort.
-- [ ] Request normalization applies CLI > preset > defaults for explicit policy,
+- [x] Config parser accepts defaults and preset model policy.
+- [x] Config parser rejects empty model and invalid effort.
+- [x] Request normalization applies CLI > preset > defaults for explicit policy,
   and leaves model fields undefined when policy is inherited.
-- [ ] `buildAppServerCommand` appends model config only when explicit policy is
+- [x] `buildAppServerCommand` appends model config only when explicit policy is
   resolved.
-- [ ] CLI dry-run / diagnostics includes `model`, `modelReasoningEffort`, and
+- [x] CLI dry-run / diagnostics includes `model`, `modelReasoningEffort`, and
   model policy source.
-- [ ] MCP request path preserves model overrides.
-- [ ] Worktree runner preserves model policy when rewriting `projectRoot` to the
+- [x] MCP request path preserves model overrides.
+- [x] Worktree runner preserves model policy when rewriting `projectRoot` to the
   isolated worktree path.
-- [ ] Existing behavior remains unchanged when no model policy is configured.
+- [x] Existing behavior remains unchanged when no model policy is configured.
 
-## Open Questions
+## Decisions And Open Questions
 
-- Should `model_reasoning_effort` be named after Codex config
-  (`model_reasoning_effort`) or OpenAI API shape (`reasoning_effort`) in sidecar
-  config? Initial plan: use Codex config spelling externally and map to
-  camelCase in TypeScript.
+- Resolved: sidecar config uses Codex config spelling
+  `model_reasoning_effort`; TypeScript request objects use
+  `modelReasoningEffort`.
 - Should `advisory` become a first-class workflow, or remain an `explore`
   preset? Initial plan: keep it as an `explore` preset to avoid widening the
   stable workflow enum.
@@ -142,12 +141,12 @@ configuration so callers can tell whether sidecar actually selected a model.
 
 ## Done Criteria
 
-- A consuming repo can select model per preset without editing global
+- [x] A consuming repo can select model per preset without editing global
   `~/.codex/config.toml`.
-- `codex-sidecar diagnostics --preset advisory` shows explicit resolved model
-  policy.
-- Real App Server logs prove the intended model was used.
-- Caveat automatic hook advisory uses `gpt-5.4-mini` through an explicit sidecar
+- [x] `codex-sidecar diagnostics` shows explicit resolved model policy for a
+  configured preset or CLI override.
+- [ ] Real App Server logs prove the intended model was used.
+- [ ] Caveat automatic hook advisory uses `gpt-5.4-mini` through an explicit sidecar
   preset, not by relying on global Codex defaults.
 
 ## Related Docs

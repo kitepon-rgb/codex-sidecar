@@ -1,4 +1,4 @@
-import type { Confidence, SidecarError, SidecarRequest, SidecarResult } from "./types.js";
+import type { Confidence, ModelPolicyInfo, SidecarError, SidecarRequest, SidecarResult } from "./types.js";
 
 export const UNKNOWN_CONFIDENCE: Confidence = {
   level: "unknown",
@@ -13,6 +13,7 @@ export function dryRunResult(request: SidecarRequest): SidecarResult {
     confidence: UNKNOWN_CONFIDENCE,
     recommendedNextAction: "Review the normalizedRequest, then run without --dry-run when App Server integration is available.",
     normalizedRequest: request,
+    modelPolicy: modelPolicyInfo(request),
   };
 }
 
@@ -24,6 +25,7 @@ export function unimplementedResult(request: SidecarRequest): SidecarResult {
     confidence: UNKNOWN_CONFIDENCE,
     recommendedNextAction: "Implement the App Server adapter behind the stable SidecarRequest/SidecarResult contract.",
     normalizedRequest: request,
+    modelPolicy: modelPolicyInfo(request),
     error: {
       code: "APP_SERVER_UNIMPLEMENTED",
       message: "Codex App Server integration is not implemented yet.",
@@ -39,7 +41,16 @@ export function errorResult(request: SidecarRequest, error: SidecarError): Sidec
     confidence: UNKNOWN_CONFIDENCE,
     recommendedNextAction: "Fix the reported error and retry. No fallback path was used.",
     normalizedRequest: request,
+    modelPolicy: modelPolicyInfo(request),
     error,
+  };
+}
+
+export function modelPolicyInfo(request: SidecarRequest): ModelPolicyInfo {
+  return {
+    source: request.model || request.modelReasoningEffort ? "explicit" : "inherited",
+    model: request.model,
+    modelReasoningEffort: request.modelReasoningEffort,
   };
 }
 

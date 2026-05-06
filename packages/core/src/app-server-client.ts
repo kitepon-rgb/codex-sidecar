@@ -13,7 +13,7 @@ import {
   type AppServerTurnStartResponse,
 } from "./app-server.js";
 import type { AppServerLogEntry } from "./app-server-logs.js";
-import type { SidecarRequest } from "./types.js";
+import type { ModelReasoningEffort, SidecarRequest } from "./types.js";
 
 export type AppServerRequestId = string | number;
 
@@ -63,6 +63,8 @@ export interface AppServerInitializeResult {
 export interface AppServerClientOptions {
   command?: string;
   args?: string[];
+  model?: string;
+  modelReasoningEffort?: ModelReasoningEffort;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   isolateCodexHome?: boolean;
@@ -187,7 +189,10 @@ export class AppServerClient {
   }
 
   static start(options: AppServerClientOptions = {}): AppServerClient {
-    const defaultCommand = buildAppServerCommand();
+    const defaultCommand = buildAppServerCommand({
+      model: options.model,
+      modelReasoningEffort: options.modelReasoningEffort,
+    });
     const command = options.command ?? defaultCommand.command;
     const args = options.args ?? defaultCommand.args;
     const isolated =

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import YAML from "yaml";
-import { WORKFLOWS, type ResultFormat, type SafetyProfileName, type SidecarConfig, type SidecarPreset } from "./types.js";
+import { WORKFLOWS, type ModelReasoningEffort, type ResultFormat, type SafetyProfileName, type SidecarConfig, type SidecarPreset } from "./types.js";
 
 export const CONFIG_FILE = ".codex-sidecar.yml";
 
@@ -16,6 +16,7 @@ const SAFETY_PROFILES = new Set<SafetyProfileName>([
 ]);
 
 const RESULT_FORMATS = new Set<ResultFormat>(["json", "json-with-prose"]);
+const MODEL_REASONING_EFFORTS = new Set<ModelReasoningEffort>(["low", "medium", "high", "xhigh"]);
 
 export async function loadSidecarConfig(projectRoot: string, configFile = CONFIG_FILE): Promise<SidecarConfig> {
   const configPath = join(projectRoot, configFile);
@@ -86,6 +87,14 @@ function validateDefaults(value: unknown, errors: string[]): void {
   if ("safety_profile" in value && !isSafetyProfile(value.safety_profile)) {
     errors.push(`defaults.safety_profile must be one of: ${[...SAFETY_PROFILES].join(", ")}`);
   }
+
+  if ("model" in value && !isNonEmptyString(value.model)) {
+    errors.push("defaults.model must be a non-empty string");
+  }
+
+  if ("model_reasoning_effort" in value && !isModelReasoningEffort(value.model_reasoning_effort)) {
+    errors.push(`defaults.model_reasoning_effort must be one of: ${[...MODEL_REASONING_EFFORTS].join(", ")}`);
+  }
 }
 
 function validatePresets(value: unknown, errors: string[]): void {
@@ -136,10 +145,26 @@ function validatePreset(name: string, value: SidecarPreset, errors: string[]): v
   if ("safety_profile" in value && !isSafetyProfile(value.safety_profile)) {
     errors.push(`presets.${name}.safety_profile must be one of: ${[...SAFETY_PROFILES].join(", ")}`);
   }
+
+  if ("model" in value && !isNonEmptyString(value.model)) {
+    errors.push(`presets.${name}.model must be a non-empty string`);
+  }
+
+  if ("model_reasoning_effort" in value && !isModelReasoningEffort(value.model_reasoning_effort)) {
+    errors.push(`presets.${name}.model_reasoning_effort must be one of: ${[...MODEL_REASONING_EFFORTS].join(", ")}`);
+  }
 }
 
 function isSafetyProfile(value: unknown): value is SafetyProfileName {
   return typeof value === "string" && SAFETY_PROFILES.has(value as SafetyProfileName);
+}
+
+function isModelReasoningEffort(value: unknown): value is ModelReasoningEffort {
+  return typeof value === "string" && MODEL_REASONING_EFFORTS.has(value as ModelReasoningEffort);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function isStringArray(value: unknown): value is string[] {

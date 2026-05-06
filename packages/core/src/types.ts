@@ -8,6 +8,8 @@ export type SidecarRole = "reviewer" | "explorer" | "worker" | "critic" | "risk-
 
 export type ResultFormat = "json" | "json-with-prose";
 
+export type ModelReasoningEffort = "low" | "medium" | "high" | "xhigh";
+
 export type EvidenceBasis = "observed" | "inferred" | "hypothetical";
 
 export type Severity = "critical" | "high" | "medium" | "low";
@@ -24,6 +26,8 @@ export interface SidecarDefaults {
   readonly?: boolean;
   result_format?: ResultFormat;
   safety_profile?: SafetyProfileName;
+  model?: string;
+  model_reasoning_effort?: ModelReasoningEffort;
 }
 
 export interface SidecarPreset {
@@ -35,6 +39,8 @@ export interface SidecarPreset {
   allowed_paths?: string[];
   deny_paths?: string[];
   safety_profile?: SafetyProfileName;
+  model?: string;
+  model_reasoning_effort?: ModelReasoningEffort;
 }
 
 export type SafetyProfileName =
@@ -81,12 +87,20 @@ export interface SidecarRequest {
   allowedPaths: string[];
   denyPaths: string[];
   safetyProfile: SafetyProfileName;
+  model?: string;
+  modelReasoningEffort?: ModelReasoningEffort;
   resultFormat: ResultFormat;
   turnTimeoutMs: number;
   interruptOnTimeout: boolean;
   preserveWorktree: boolean;
   context: SidecarContextBlock[];
   dryRun: boolean;
+}
+
+export interface ModelPolicyInfo {
+  source: "explicit" | "inherited";
+  model?: string;
+  modelReasoningEffort?: ModelReasoningEffort;
 }
 
 export interface SidecarError {
@@ -128,6 +142,7 @@ export interface SidecarResult {
   failureModes?: string[];
   rawEventLogRef?: string;
   normalizedRequest?: SidecarRequest;
+  modelPolicy?: ModelPolicyInfo;
   error?: SidecarError;
 }
 

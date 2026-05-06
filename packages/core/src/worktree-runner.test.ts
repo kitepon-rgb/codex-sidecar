@@ -29,8 +29,10 @@ const plan: WorktreePlan = {
 test("runWorktreeAppServerRequest runs Codex inside isolated worktree and reports changed files", async () => {
   let appServerProjectRoot = "";
   let appServerEventLogDir = "";
+  let appServerModel = "";
+  let appServerModelReasoningEffort = "";
 
-  const result = await runWorktreeAppServerRequest(request, {
+  const result = await runWorktreeAppServerRequest({ ...request, model: "gpt-5.5", modelReasoningEffort: "high" }, {
     dependencies: {
       plan: async () => plan,
       create: async (createdPlan) => createdPlan,
@@ -38,6 +40,8 @@ test("runWorktreeAppServerRequest runs Codex inside isolated worktree and report
       runAppServer: async (worktreeRequest, options) => {
         appServerProjectRoot = worktreeRequest.projectRoot;
         appServerEventLogDir = options?.eventLogDir ?? "";
+        appServerModel = worktreeRequest.model ?? "";
+        appServerModelReasoningEffort = worktreeRequest.modelReasoningEffort ?? "";
         return okResult(worktreeRequest);
       },
     },
@@ -46,6 +50,8 @@ test("runWorktreeAppServerRequest runs Codex inside isolated worktree and report
   assert.equal(result.status, "ok");
   assert.equal(appServerProjectRoot, "/tmp/repo-worktree");
   assert.equal(appServerEventLogDir, "/repo/.codex-sidecar/logs/app-server");
+  assert.equal(appServerModel, "gpt-5.5");
+  assert.equal(appServerModelReasoningEffort, "high");
   assert.deepEqual(result.changedFiles, ["docs/plan.md"]);
   assert.equal(result.worktreePath, "/tmp/repo-worktree");
   assert.equal(result.worktreePreserved, true);

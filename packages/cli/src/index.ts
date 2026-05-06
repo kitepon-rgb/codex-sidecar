@@ -7,7 +7,9 @@ import {
   buildEcosystemContextBlocks,
   buildSidecarRequest,
   loadSidecarConfig,
+  modelPolicyInfo,
   runSidecarRequest,
+  type ModelReasoningEffort,
   type SidecarContextBlock,
   type SidecarWorkflow,
 } from "codex-sidecar-core";
@@ -18,6 +20,8 @@ interface CliOptions {
   configFile: string;
   preset?: string;
   prompt?: string;
+  model?: string;
+  modelReasoningEffort?: ModelReasoningEffort;
   json: boolean;
   dryRun: boolean;
   turnTimeoutMs?: number;
@@ -47,6 +51,8 @@ try {
       projectRoot: parsed.projectRoot,
       preset: resolvedPreset,
       prompt: parsed.prompt,
+      model: parsed.model,
+      modelReasoningEffort: parsed.modelReasoningEffort,
       turnTimeoutMs: parsed.turnTimeoutMs,
       interruptOnTimeout: parsed.interruptOnTimeout,
       preserveWorktree: parsed.preserveWorktree,
@@ -59,6 +65,7 @@ try {
       configFile: parsed.configFile,
       projectRoot: parsed.projectRoot,
       normalizedRequest: request,
+      modelPolicy: modelPolicyInfo(request),
     });
     exit(0);
   }
@@ -68,6 +75,8 @@ try {
     projectRoot: parsed.projectRoot,
     preset: resolvedPreset,
     prompt: parsed.prompt,
+    model: parsed.model,
+    modelReasoningEffort: parsed.modelReasoningEffort,
     turnTimeoutMs: parsed.turnTimeoutMs,
     interruptOnTimeout: parsed.interruptOnTimeout,
     preserveWorktree: parsed.preserveWorktree,
@@ -117,6 +126,19 @@ function parseArgs(args: string[]): CliOptions {
 
     if (arg === "--preset") {
       options.preset = requireValue(args, (index += 1), "--preset");
+      continue;
+    }
+
+    if (arg === "--model") {
+      options.model = requireValue(args, (index += 1), "--model");
+      continue;
+    }
+
+    if (arg === "--model-reasoning-effort") {
+      options.modelReasoningEffort = parseModelReasoningEffort(
+        requireValue(args, (index += 1), "--model-reasoning-effort"),
+        "--model-reasoning-effort",
+      );
       continue;
     }
 
@@ -185,9 +207,17 @@ function parsePositiveInteger(value: string, option: string): number {
   return parsed;
 }
 
+function parseModelReasoningEffort(value: string, option: string): ModelReasoningEffort {
+  if (value === "low" || value === "medium" || value === "high" || value === "xhigh") {
+    return value;
+  }
+
+  throw new Error(`${option} must be one of: low, medium, high, xhigh`);
+}
+
 function printUsage(): void {
   console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics> [options] [prompt]`);
-  console.error("Options: --project <dir> --config <file> --preset <name> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
+  console.error("Options: --project <dir> --config <file> --preset <name> --model <model> --model-reasoning-effort <effort> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
 }
 
 function printJson(value: unknown): void {

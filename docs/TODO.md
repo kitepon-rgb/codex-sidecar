@@ -5,8 +5,9 @@ docs and the GitHub issues linked below.
 
 ## Current Priority
 
-Explicit Codex model selection is the current cross-repo priority. Track the
-plan and task list in [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md).
+Explicit Codex model selection is implemented in `codex-sidecar`. Track
+remaining Caveat-side preset and hook follow-up in
+[CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md).
 
 ## Active Tasks
 
@@ -18,7 +19,7 @@ plan and task list in [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md).
 | P1 | Wire MCP tools to real sidecar execution | Done | [#4](https://github.com/kitepon-rgb/codex-sidecar/issues/4) |
 | P0 | Implement worktree-backed `codex_work` execution | Done | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |
 | P2 | Add ecosystem adapters and fixture snapshots | Done | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
-| P0 | Add explicit Codex model policy for sidecar presets | Planned | [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md) |
+| P0 | Add explicit Codex model policy for sidecar presets | Done | [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md) |
 
 ## Local CodeGraph Setup
 

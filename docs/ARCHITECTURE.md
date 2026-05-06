@@ -72,6 +72,7 @@ Owns shared behavior:
 
 - project config loading
 - preset resolution
+- explicit Codex model policy resolution
 - safety policy normalization
 - path allow/deny matching
 - prompt shaping
@@ -104,6 +105,10 @@ Read-only workflows call Codex App Server through `core`. Write workflows run
 through isolated git worktrees and return reviewable changed-file metadata
 without touching the active working tree.
 
+CLI model flags are request overrides. If omitted, model policy still resolves
+inside `core` from preset/default config, or remains absent so Codex can inherit
+its own isolated configuration.
+
 ### `packages/mcp`
 
 Provides an MCP server for Claude Code:
@@ -117,6 +122,9 @@ Provides an MCP server for Claude Code:
 The MCP layer exposes stable tool schemas and translates calls into the same
 `core` request types used by the CLI. Read-only tools use the shared core
 execution path and return `SidecarResult` JSON as structured MCP content.
+
+MCP model fields mirror the CLI flags and remain optional for inherited Codex
+configuration.
 
 Read-only tools should be easy to call. Write-capable tools must require an
 explicit project config and must surface safety refusals as structured errors.

@@ -8,6 +8,7 @@ import {
   runSidecarRequest,
   toSidecarError,
   type RequestInput,
+  type ModelReasoningEffort,
   type SidecarConfig,
   type SidecarContextBlock,
   type SidecarError,
@@ -44,6 +45,8 @@ export interface CodexSidecarToolInput {
   configFile?: string;
   prompt?: string;
   preset?: string;
+  model?: string;
+  modelReasoningEffort?: ModelReasoningEffort;
   dryRun?: boolean;
   turnTimeoutMs?: number;
   interruptOnTimeout?: boolean;
@@ -79,6 +82,15 @@ const commonProperties = {
   configFile: {
     type: "string",
     description: `Optional config filename relative to projectRoot. Defaults to ${CONFIG_FILE}.`,
+  },
+  model: {
+    type: "string",
+    description: "Explicit Codex model to pass to App Server startup.",
+  },
+  modelReasoningEffort: {
+    type: "string",
+    enum: ["low", "medium", "high", "xhigh"],
+    description: "Explicit Codex model reasoning effort to pass to App Server startup.",
   },
   dryRun: {
     type: "boolean",
@@ -160,6 +172,8 @@ export async function handleCodexSidecarToolCall(
       projectRoot: input.value.projectRoot,
       prompt: input.value.prompt,
       preset: input.value.preset,
+      model: input.value.model,
+      modelReasoningEffort: input.value.modelReasoningEffort,
       dryRun: input.value.dryRun,
       turnTimeoutMs: input.value.turnTimeoutMs,
       interruptOnTimeout: input.value.interruptOnTimeout,
@@ -221,6 +235,7 @@ function parseToolInput(rawInput: unknown): { value: CodexSidecarToolInput } | {
   copyOptionalString(rawInput, input, "configFile", errors);
   copyOptionalString(rawInput, input, "prompt", errors);
   copyOptionalString(rawInput, input, "preset", errors);
+  copyOptionalString(rawInput, input, "model", errors);
   copyOptionalBoolean(rawInput, input, "dryRun", errors);
   copyOptionalBoolean(rawInput, input, "interruptOnTimeout", errors);
   copyOptionalBoolean(rawInput, input, "allowWork", errors);
@@ -231,6 +246,14 @@ function parseToolInput(rawInput: unknown): { value: CodexSidecarToolInput } | {
       errors.push("turnTimeoutMs must be a positive integer");
     } else {
       input.turnTimeoutMs = rawInput.turnTimeoutMs;
+    }
+  }
+
+  if ("modelReasoningEffort" in rawInput) {
+    if (isModelReasoningEffort(rawInput.modelReasoningEffort)) {
+      input.modelReasoningEffort = rawInput.modelReasoningEffort;
+    } else {
+      errors.push("modelReasoningEffort must be one of: low, medium, high, xhigh");
     }
   }
 
@@ -260,7 +283,7 @@ function parseToolInput(rawInput: unknown): { value: CodexSidecarToolInput } | {
 function copyOptionalString(
   source: Record<string, unknown>,
   target: CodexSidecarToolInput,
-  key: "configFile" | "prompt" | "preset",
+  key: "configFile" | "prompt" | "preset" | "model",
   errors: string[],
 ): void {
   if (!(key in source)) {
@@ -272,7 +295,16 @@ function copyOptionalString(
     return;
   }
 
+  if (key === "model" && source[key].trim().length === 0) {
+    errors.push("model must be a non-empty string");
+    return;
+  }
+
   target[key] = source[key];
+}
+
+function isModelReasoningEffort(value: unknown): value is ModelReasoningEffort {
+  return value === "low" || value === "medium" || value === "high" || value === "xhigh";
 }
 
 function copyOptionalBoolean(
