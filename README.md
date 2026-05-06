@@ -71,13 +71,13 @@ inspect the diff before applying anything.
 
 ## What It Runs
 
-| Workflow | Purpose | Writes? | Output highlights |
-|---|---|---:|---|
-| `codex_review` | Review a diff, branch, or patch | No | `findings`, `missingTests`, `residualRisks` |
-| `codex_explore` | Investigate a codebase question | No | `summary`, `fileReferences` |
-| `codex_opinion` | Challenge a plan or design | No | `recommendation`, `objections`, `assumptions` |
-| `codex_risk_check` | Focus on secrets, MCP, OAuth, hooks, Docker, CI | No | `risks`, `sourceBoundaries` |
-| `codex_work` | Implement a small scoped change | Isolated worktree only | `changedFiles`, `tests`, `worktreePath` |
+| CLI workflow | MCP tool | Purpose | Writes? | Output highlights |
+|---|---|---|---:|---|
+| `review` | `codex_review` | Review a diff, branch, or patch | No | `findings`, `missingTests`, `residualRisks` |
+| `explore` | `codex_explore` | Investigate a codebase question | No | `summary`, `fileReferences` |
+| `opinion` | `codex_opinion` | Challenge a plan or design | No | `recommendation`, `objections`, `assumptions` |
+| `risk-check` | `codex_risk_check` | Focus on secrets, MCP, OAuth, hooks, Docker, CI | No | `risks`, `sourceBoundaries` |
+| `work` | `codex_work` | Implement a small scoped change | Isolated worktree only | `changedFiles`, `tests`, `worktreePath` |
 
 Every workflow returns one `SidecarResult` JSON object. Downstream tools should
 consume the structured fields instead of scraping prose.
@@ -180,11 +180,13 @@ tools without requiring them:
 ```text
 codex-sidecar/
 ├─ docs/
-│  ├─ PLAN.md
+│  ├─ README.md
 │  ├─ TODO.md
+│  ├─ CODEX_MODEL_POLICY_TODO.md
 │  ├─ ARCHITECTURE.md
 │  ├─ PROTOCOL.md
-│  └─ USAGE.md
+│  ├─ USAGE.md
+│  └─ archive/
 ├─ examples/
 │  └─ .codex-sidecar.yml
 ├─ packages/
@@ -206,7 +208,7 @@ The current spine is functional:
 - CLI commands for all workflows
 - MCP tool descriptors, schemas, and core-backed handlers
 - Codex App Server stdio client and read-only turn execution
-- structured result normalization for read-only workflows
+- structured result normalization for App Server-backed workflows
 - raw App Server JSONL event logs with `rawEventLogRef`
 - caller-selected turn timeouts and optional interruption
 - worktree-backed `codex_work` with changed-file reporting
@@ -228,11 +230,12 @@ corepack pnpm build
 ## Related Docs
 
 - [AGENTS.md](AGENTS.md): working instructions for Codex and future agents.
+- [docs/README.md](docs/README.md): docs index and archive map.
 - [docs/USAGE.md](docs/USAGE.md): CLI, MCP handler, worktree, raw log, and structured result examples.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
-- [docs/PLAN.md](docs/PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
 - [docs/TODO.md](docs/TODO.md): durable task list and linked GitHub issues.
+- [docs/CODEX_MODEL_POLICY_TODO.md](docs/CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
 
 ## License
 

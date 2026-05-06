@@ -57,10 +57,10 @@ initialize handshake, and typed helpers for `thread/start` and `turn/start`.
 It also has pure notification helpers for assistant text deltas and
 `turn/completed` state, plus a client-side notification wait primitive for
 read-only execution.
-Read-only sidecar workflows can now start a real App Server turn and normalize
-the final assistant text into `SidecarResult`. `codex_work` must still return a
-structured `APP_SERVER_UNIMPLEMENTED` result until worktree-backed execution is
-wired; it must not fall back to direct active-tree editing.
+Read-only sidecar workflows can start a real App Server turn and normalize the
+assistant output into `SidecarResult`. `codex_work` also calls App Server, but
+only after creating an isolated git worktree; it must never fall back to direct
+active-tree editing.
 
 Verified local read-only smoke:
 
@@ -84,9 +84,10 @@ real App Server turn.
 9. Return a normalized result with findings, file references, changed files,
    tests, and risks as appropriate.
 
-Current implementation note: read-only workflows perform steps 1-8 and return
-the final assistant text as `summary`. Richer workflow-specific JSON fields are
-tracked as follow-up work.
+Current implementation note: read-only workflows perform steps 1-8. `codex_work`
+performs the same App Server turn inside the isolated worktree, then validates
+changed files against path policy before returning changed-file metadata. Richer
+workflow-specific JSON fields remain an ongoing quality area.
 
 ## Contracts To Keep Stable
 
@@ -102,13 +103,13 @@ Server changes:
 - context block schema
 - raw event log reference schema
 
-## Structured Read-Only Output
+## Structured App Server Output
 
-Read-only App Server turns are prompted to return exactly one JSON object. The
-adapter parses that object directly into `SidecarResult` fields. If the
-assistant output is not valid JSON, or if required workflow-specific fields are
-missing or malformed, the run fails with `PROTOCOL_ERROR`; callers must not parse
-prose as a fallback.
+App Server turns are prompted to return exactly one JSON object. The adapter
+parses that object directly into `SidecarResult` fields. If the assistant output
+is not valid JSON, or if required workflow-specific fields are missing or
+malformed, the run fails with `PROTOCOL_ERROR`; callers must not parse prose as
+a fallback.
 
 Common required fields:
 
@@ -121,18 +122,17 @@ Common required fields:
 
 Workflow-specific required fields:
 
-- `codex_review`: `findings`, `missingTests`, `residualRisks`
-- `codex_risk_check`: `risks`
-- `codex_opinion`: `recommendation`, `objections`, `assumptions`,
-  `failureModes`
-- `codex_explore`: answer text in `summary`, citations in `fileReferences`
+- `review`: `findings`, `missingTests`, `residualRisks`
+- `risk-check`: `risks`
+- `opinion`: `recommendation`, `objections`, `assumptions`, `failureModes`
+- `explore`: answer text in `summary`, citations in `fileReferences`
+- `work`: `tests`, `risks`
 
 ## Raw Event Logs
 
-Read-only App Server runs create one JSONL artifact under
-`.codex-sidecar/logs/app-server/` by default. `SidecarResult.rawEventLogRef`
-contains the local path to that file for both successful runs and protocol
-failures after log creation.
+App Server runs create one JSONL artifact under `.codex-sidecar/logs/app-server/`
+by default. `SidecarResult.rawEventLogRef` contains the local path to that file
+for both successful runs and protocol failures after log creation.
 
 Each line is a JSON object with:
 
@@ -209,6 +209,7 @@ Known ecosystem block kinds:
 - `throughline_handoff`
 - `caveat_entry`
 - `smartclaude_cost_hint`
+- `codegraph_context`
 - `manual_note`
 
 Generic users can pass `manual_note` or omit context entirely.
@@ -226,9 +227,6 @@ The protocol adapter should fail explicitly.
 ## Open Questions
 
 - Whether long-lived App Server sessions should be shared across calls.
-- How much raw protocol output should be stored in logs by default. This is
-  tracked in [issue #2](https://github.com/kitepon-rgb/codex-sidecar/issues/2).
-- How MCP clients should opt into write-capable `codex_work` calls.
 - Whether generic installs should enable App Server reuse by default.
 - How much ecosystem context is too much for a second-opinion call.
 
@@ -236,6 +234,7 @@ The protocol adapter should fail explicitly.
 
 - [../README.md](../README.md): project overview and repository layout.
 - [../AGENTS.md](../AGENTS.md): working instructions for Codex and future agents.
-- [PLAN.md](PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
+- [README.md](README.md): docs index and archive map.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [TODO.md](TODO.md): durable task list and linked GitHub issues.
+- [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.

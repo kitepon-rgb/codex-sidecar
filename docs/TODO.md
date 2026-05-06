@@ -1,12 +1,12 @@
 # TODO
 
-This file is the durable project task list. Keep it aligned with
-[PLAN.md](PLAN.md) and the GitHub issues linked below.
+This file is the durable project task list. Keep it aligned with the current
+docs and the GitHub issues linked below.
 
 ## Current Priority
 
-All tracked repository-local tasks are complete. Future work should start from
-new issues or from the external coordination table below.
+Explicit Codex model selection is the current cross-repo priority. Track the
+plan and task list in [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md).
 
 ## Active Tasks
 
@@ -18,6 +18,7 @@ new issues or from the external coordination table below.
 | P1 | Wire MCP tools to real sidecar execution | Done | [#4](https://github.com/kitepon-rgb/codex-sidecar/issues/4) |
 | P0 | Implement worktree-backed `codex_work` execution | Done | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |
 | P2 | Add ecosystem adapters and fixture snapshots | Done | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
+| P0 | Add explicit Codex model policy for sidecar presets | Planned | [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md) |
 
 ## Local CodeGraph Setup
 
@@ -44,10 +45,11 @@ actively trigger them when the integration boundary is reached.
 | Throughline | When `SidecarContextBlock kind: "throughline_handoff"` needs more than read-only DB/CLI import, or when Codex sessions themselves should be captured/resumed. | Add first-class Codex session memory support in Throughline. | [Throughline #1](https://github.com/kitepon-rgb/Throughline/issues/1) |
 | Caveat | When `SidecarContextBlock kind: "caveat_entry"` needs automatic Codex prompt/error retrieval or Codex-origin record/update suggestions. | Add first-class Codex retrieval and recording support in Caveat. | [Caveat #10](https://github.com/kitepon-rgb/Caveat/issues/10) |
 
-Coordination rule: during work on [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6),
-call out explicitly whether the next step belongs in `codex-sidecar`,
-Throughline, or Caveat. Do not quietly implement cross-repo behavior in the
-wrong repository.
+Coordination rule: when model policy, context adapters, or sidecar workflow
+changes require upstream behavior, call out explicitly whether the next step
+belongs in `codex-sidecar`, Throughline, Caveat, or another consuming
+repository. Do not quietly implement cross-repo behavior in the wrong
+repository.
 
 ## Rules
 
@@ -56,13 +58,15 @@ wrong repository.
 - Do not close a TODO entry until tests or smoke checks prove the behavior.
 - If a task cannot be completed as planned, record the explicit blocker instead
   of silently changing scope.
-- `codex_work` remains unavailable until isolated worktree execution is fully
-  wired and verified.
+- `codex_work` must remain isolated in a git worktree; do not route it through
+  the active working tree for convenience.
 
 ## Related Docs
 
 - [../README.md](../README.md): project overview and repository layout.
 - [../AGENTS.md](../AGENTS.md): working instructions for Codex and future agents.
-- [PLAN.md](PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
+- [README.md](README.md): docs index and archive map.
+- [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
+- [archive/PLAN.md](archive/PLAN.md): archived original phase roadmap.

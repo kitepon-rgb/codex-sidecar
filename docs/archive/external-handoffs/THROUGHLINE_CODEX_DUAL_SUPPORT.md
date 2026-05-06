@@ -1,3 +1,9 @@
+# Archived Handoff: Throughline Claude / Codex Dual Support
+
+This was an external implementation brief for Throughline. It is archived here
+for historical context. Check the Throughline repository and current
+`codex-sidecar` docs before treating any item as active.
+
 # Throughline: Claude / Codex 両対応計画
 
 この文書は Throughline repository に貼り付けるための実装ブリーフです。目的は、Throughline を Claude Code と Codex の両方から安全に使える形へ育てることです。

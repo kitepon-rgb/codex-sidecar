@@ -138,8 +138,8 @@ Inside `packages/core/src`:
 - `worktree`: isolated worktree lifecycle
 - `worktree-runner`: `codex_work` execution inside an isolated git worktree
 - `context`: optional plain JSON context block adapters
-- future `prompts`: workflow-specific prompt shaping / structured-output requests
-- future `diagnostics`: environment and config checks
+- `structured-output`: workflow-specific prompt shaping and output parsing
+- `diagnostics`: config and normalized-request checks through CLI and dry-run surfaces
 
 ## Safety Model
 
@@ -208,6 +208,7 @@ Avoid:
 
 - [../README.md](../README.md): project overview and repository layout.
 - [../AGENTS.md](../AGENTS.md): working instructions for Codex and future agents.
-- [PLAN.md](PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
+- [README.md](README.md): docs index and archive map.
 - [TODO.md](TODO.md): durable task list and linked GitHub issues.
+- [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.

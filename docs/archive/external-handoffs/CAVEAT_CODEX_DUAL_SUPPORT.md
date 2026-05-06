@@ -1,3 +1,9 @@
+# Archived Handoff: Caveat Claude / Codex Dual Support
+
+This was an external implementation brief for Caveat. It is archived here for
+historical context. Check the Caveat repository and current `codex-sidecar`
+docs before treating any item as active.
+
 # Caveat: Claude / Codex 両対応計画
 
 この文書は Caveat repository に貼り付けるための実装ブリーフです。目的は、Caveat を Claude Code と Codex の両方から安全に使える形へ育てることです。

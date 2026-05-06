@@ -31,13 +31,13 @@ context adapter とする。
   JSON として返す。
 - この repo の判断は、公開 GitHub の kitepon-rgb リポジトリ群の実態を前提にする。
 
-最初の対象ワークフロー:
+対象 workflow と MCP tool:
 
-- `codex_review`: diff / branch / patch の読み取り専用レビュー
-- `codex_explore`: コードベース調査とファイル参照つき回答
-- `codex_work`: isolated git worktree 上での小さな修正
-- `codex_opinion`: 設計案への反対意見、見落とし、代替案の提示
-- `codex_risk_check`: OAuth / MCP / secrets / Docker / hooks / CI などの重点リスク確認
+- CLI workflow `review` / MCP tool `codex_review`: diff / branch / patch の読み取り専用レビュー
+- CLI workflow `explore` / MCP tool `codex_explore`: コードベース調査とファイル参照つき回答
+- CLI workflow `work` / MCP tool `codex_work`: isolated git worktree 上での小さな修正
+- CLI workflow `opinion` / MCP tool `codex_opinion`: 設計案への反対意見、見落とし、代替案の提示
+- CLI workflow `risk-check` / MCP tool `codex_risk_check`: OAuth / MCP / secrets / Docker / hooks / CI などの重点リスク確認
 
 非目的:
 
@@ -103,30 +103,27 @@ corepack pnpm build
 RTK は Codex グローバル指示で導入済み。shell コマンドは原則 `rtk` を先頭につける。
 正確な生出力が必要な検証では `rtk proxy <cmd>` を使う。
 
-CodeGraph MCP は Codex グローバルに `codegraph` として登録済み。ただし、この
-リポジトリ自体の `.codegraph/` はまだ未初期化。次セッション冒頭で
-`codegraph init -i /home/kite/projects/codex-sidecar` を実行して status を確認する。
+CodeGraph MCP は Codex グローバルに `codegraph` として登録済み。この
+リポジトリの `.codegraph/` は初期化済みで、ローカル index として扱う。
 
 ## Current Notes
 
-現在は read-only workflow が Codex App Server 経由で実行できる段階。
-`explore` smoke は実 App Server turn で `status: "ok"` を返すことを確認済み。
+現在は CLI / MCP / read-only App Server / raw event log / timeout control /
+worktree-backed `codex_work` / ecosystem context adapters が実装済み。
+進行中の大きな作業は explicit Codex model policy。
 
-まだ残っている大きな穴:
+まだ残っている主な穴:
 
-- `codex_work` は worktree-backed execution が未配線なので明示的に未実装。
-- raw App Server event log はまだ実ファイル保存されていない。
-- read-only result は final assistant text 中心で、`findings` / `risks` などの
-  workflow-specific structured fields は今後強化する。
-- MCP package は tool descriptor/schema scaffold で、real sidecar execution への
-  handler 接続は未実装。
+- preset ごとの Codex model / reasoning effort selection は未実装。
+- read-only result の workflow-specific structured fields は継続強化対象。
 - Throughline / Caveat の完全な Codex 対応は各 upstream repository の作業。
   `codex-sidecar` ではまず reader/context adapter と fixture を扱う。
 
 ## Related Docs
 
 - [README.md](README.md): project overview and repository layout.
-- [docs/PLAN.md](docs/PLAN.md): roadmap, phases, generic core, and ecosystem overlay.
+- [docs/README.md](docs/README.md): docs index and archive map.
 - [docs/TODO.md](docs/TODO.md): durable task list, GitHub issues, and external coordination.
+- [docs/CODEX_MODEL_POLICY_TODO.md](docs/CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.

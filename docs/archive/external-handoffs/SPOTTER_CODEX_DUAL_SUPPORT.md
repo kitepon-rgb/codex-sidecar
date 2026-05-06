@@ -1,3 +1,9 @@
+# Archived Handoff: Spotter Claude / Codex Dual Support
+
+This was an external implementation brief for Spotter. It is archived here for
+historical context. Check the Spotter repository and current `codex-sidecar`
+docs before treating any item as active.
+
 # Spotter: Claude / Codex 両対応計画
 
 この文書は Spotter repository に貼り付けるための実装ブリーフです。目的は、Spotter を Claude Code と Codex の両方から安全に使える形へ育てることです。
