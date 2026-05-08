@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
   handleCodexSidecarToolCall,
   toolDescriptors,
@@ -132,6 +138,32 @@ test("handleCodexSidecarToolCall returns structured input errors", async () => {
   assert.equal(result.structuredContent.error?.code, "CONFIG_INVALID");
   assert.match(result.structuredContent.summary, /model must be a non-empty string/);
   assert.match(result.structuredContent.summary, /modelReasoningEffort/);
+});
+
+test("stdio server starts when invoked through a symlinked bin path", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "codex-sidecar-mcp-"));
+  const serverPath = join(dirname(fileURLToPath(import.meta.url)), "server.js");
+  const linkedPath = join(tempDir, "codex-sidecar-mcp");
+  symlinkSync(serverPath, linkedPath);
+
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [linkedPath],
+  });
+  const client = new Client({ name: "codex-sidecar-test", version: "0.0.0" }, { capabilities: {} });
+
+  try {
+    await client.connect(transport);
+    const tools = await client.listTools();
+
+    assert.deepEqual(
+      tools.tools.map((tool) => tool.name),
+      toolDescriptors.map((tool) => tool.name),
+    );
+  } finally {
+    await client.close().catch(() => undefined);
+    rmSync(tempDir, { force: true, recursive: true });
+  }
 });
 
 function okResult(input: RequestInput): SidecarResult {

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.1] — 2026-05-08
+
+### Fixed
+- Start the MCP stdio server when `codex-sidecar-mcp` is invoked through an npm
+  global `bin` symlink.
+- Add a symlinked-bin regression test so distributed MCP installs keep listing
+  all six sidecar tools.
+
+### Documentation
+- Document npm symlinked `bin` startup as part of the supported MCP
+  distribution path.
+
 ## [0.3.0] — 2026-05-06
 
 ### Added

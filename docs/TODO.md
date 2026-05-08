@@ -9,6 +9,10 @@ Explicit Codex model selection is implemented in `codex-sidecar`. Track
 remaining Caveat-side preset and hook follow-up in
 [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md).
 
+The MCP npm-bin symlink startup bug is fixed in the 0.3.1 line. Keep the
+symlinked stdio-server regression test in place for future package and release
+changes.
+
 ## Active Tasks
 
 | Priority | Task | Status | Issue |
@@ -20,6 +24,7 @@ remaining Caveat-side preset and hook follow-up in
 | P0 | Implement worktree-backed `codex_work` execution | Done | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |
 | P2 | Add ecosystem adapters and fixture snapshots | Done | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
 | P0 | Add explicit Codex model policy for sidecar presets | Done | [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md) |
+| P0 | Fix npm symlinked `codex-sidecar-mcp` bin startup | Done | 0.3.1 |
 
 ## Local CodeGraph Setup
 

@@ -25,6 +25,10 @@ npm install -g codex-sidecar-cli
 npm install -g codex-sidecar-mcp
 ```
 
+`codex-sidecar-mcp` は npm の `bin` として配布されます。global install では
+PATH 上のコマンドが symlink になるため、この symlink 経由でも MCP stdio
+server が起動することをテストで固定しています。
+
 source から build する場合:
 
 ```bash

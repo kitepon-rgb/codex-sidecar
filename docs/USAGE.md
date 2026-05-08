@@ -22,6 +22,11 @@ Install the MCP stdio server globally when a client should launch it by command:
 npm install -g codex-sidecar-mcp
 ```
 
+The installed `codex-sidecar-mcp` command is expected to be an npm `bin`
+symlink. The server entrypoint resolves that symlink before deciding whether the
+module was invoked as the executable, so distributed installs start the stdio
+MCP server instead of exiting immediately.
+
 From this repository:
 
 ```bash
@@ -40,6 +45,10 @@ During local development, the equivalent built path is:
 ```bash
 node packages/cli/dist/index.js diagnostics --project /path/to/project
 ```
+
+For MCP local development, verify the built stdio server through a symlinked
+command path, not only by importing `packages/mcp/dist/server.js`. That mirrors
+how npm global installs and MCP clients launch the package.
 
 If the repository is used through scripts or an MCP server, keep the same
 package manager path. This project expects `corepack pnpm`, not a different
@@ -258,6 +267,10 @@ path as the CLI:
 - `codex_opinion`
 - `codex_risk_check`
 - `codex_auditor`
+
+The MCP server is a stdio process. Clients should launch the `codex-sidecar-mcp`
+command from PATH; the package supports npm-style symlinked bin paths and does
+not require clients to know the real `dist/server.js` location.
 
 Common input fields:
 
@@ -546,6 +559,10 @@ corepack pnpm typecheck
 corepack pnpm test
 corepack pnpm build
 ```
+
+For MCP distribution changes, also keep the symlinked-bin regression test
+passing. It proves that a globally installed `codex-sidecar-mcp` command starts
+the stdio server and lists the expected tools.
 
 For a consuming repository, start with:
 

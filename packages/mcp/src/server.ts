@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -48,7 +50,7 @@ const toolInputSchema = {
 
 export async function startCodexSidecarMcpStdioServer(): Promise<void> {
   const server = new McpServer(
-    { name: "codex-sidecar", version: "0.3.0" },
+    { name: "codex-sidecar", version: "0.3.1" },
     { capabilities: { tools: {} } },
   );
 
@@ -78,12 +80,14 @@ export async function startCodexSidecarMcpStdioServer(): Promise<void> {
   await server.connect(transport);
 }
 
-const invokedPath = process.argv[1]?.replace(/\\/g, "/") ?? "";
-const thisPath = import.meta.url.startsWith("file://")
-  ? import.meta.url.slice(7).replace(/^\/+([a-zA-Z]:)/, "$1")
-  : "";
+function normalizeEntrypointPath(path: string): string {
+  return realpathSync(path).replace(/\\/g, "/").toLowerCase();
+}
 
-if (invokedPath && thisPath && invokedPath.toLowerCase() === thisPath.toLowerCase()) {
+const invokedPath = process.argv[1] ?? "";
+const thisPath = fileURLToPath(import.meta.url);
+
+if (invokedPath && normalizeEntrypointPath(invokedPath) === normalizeEntrypointPath(thisPath)) {
   startCodexSidecarMcpStdioServer().catch((error: unknown) => {
     const msg = error instanceof Error ? error.message : String(error);
     process.stderr.write(`[codex-sidecar:mcp:error] ${msg}\n`);

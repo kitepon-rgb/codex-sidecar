@@ -36,6 +36,10 @@ Install the MCP stdio server globally when a client wants a command on PATH:
 npm install -g codex-sidecar-mcp
 ```
 
+The MCP package is distributed as an npm `bin`. npm global installs normally
+place a symlink on PATH, and `codex-sidecar-mcp` is tested to start correctly
+through that symlinked command.
+
 Build from source:
 
 ```bash
@@ -220,9 +224,11 @@ The current spine is functional:
 - ecosystem context adapters and fixture snapshots
 - local CodeGraph index support for this repository
 
-The current release is ready for npm-based CLI and MCP installation. Caveat
-adoption is implemented through `caveat codex-sidecar ...` commands and optional
-Claude hook advisory.
+The current release is ready for npm-based CLI and MCP installation. The MCP
+stdio server is verified against npm-style symlinked `bin` startup, which is the
+normal path for Claude Code and other MCP clients that launch
+`codex-sidecar-mcp` from PATH. Caveat adoption is implemented through
+`caveat codex-sidecar ...` commands and optional Claude hook advisory.
 
 ## Development
 

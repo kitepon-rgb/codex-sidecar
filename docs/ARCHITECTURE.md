@@ -128,6 +128,11 @@ execution path and return `SidecarResult` JSON as structured MCP content.
 MCP model fields mirror the CLI flags and remain optional for inherited Codex
 configuration.
 
+The MCP package is also a distributed npm `bin`. Its stdio entrypoint must work
+when invoked through npm's symlinked command path, because Claude Code and other
+MCP clients normally launch `codex-sidecar-mcp` from PATH rather than importing
+the real `dist/server.js` file directly.
+
 Read-only tools should be easy to call. Write-capable tools must require an
 explicit project config and must surface safety refusals as structured errors.
 
