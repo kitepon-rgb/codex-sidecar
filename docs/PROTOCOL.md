@@ -186,6 +186,35 @@ Allowed `modelReasoningEffort` values are `low`, `medium`, `high`, and `xhigh`.
 No `none` value is accepted; omit the field when no explicit reasoning effort
 should be selected.
 
+## Transport Layer
+
+The MCP server runs over two transports, selected at startup:
+
+- stdio (default): MCP client launches `codex-sidecar-mcp` over stdio. Framing
+  follows the MCP stdio spec; the contract is unchanged from previous releases.
+- Streamable HTTP (`CODEX_SIDECAR_MCP_TRANSPORT=http`): single `/mcp`
+  endpoint, `POST` for client→server messages, `GET` for the server-initiated
+  SSE stream, `DELETE` for explicit session close. Sessions are stateful: the
+  server generates an `mcp-session-id` on the first `initialize` POST and
+  every subsequent request must echo that header.
+
+Both transports use the same `McpServer` and tool registration code path. Tool
+descriptors, input schemas, and the `SidecarResult` contract are identical
+regardless of transport. The HTTP server holds one `StreamableHTTPServerTransport`
+plus one `McpServer` per session in an in-memory map; a transport `onclose`
+handler cleans the map when a session ends or the connection drops.
+
+DNS rebinding protection is enabled by default for the HTTP transport. The
+SDK matches the HTTP `Host` header verbatim, so the allowlist must include
+both the bare host and `host:port` forms; the `defaultAllowedHosts` helper in
+`packages/mcp/src/server-http.ts` derives both from the bind host and port.
+
+Optional bearer-token enforcement is layered above the transport: when
+`CODEX_SIDECAR_MCP_BEARER` is set, every request is rejected with HTTP 401
+unless the `Authorization: Bearer <token>` header matches. This is a deploy-
+time policy choice and is not represented in the wire schema, so clients see
+an HTTP-level failure rather than an MCP-level one.
+
 ## Worktree-Backed Work
 
 `codex_work` creates an isolated git worktree before calling Codex App Server

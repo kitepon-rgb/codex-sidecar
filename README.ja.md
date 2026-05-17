@@ -116,6 +116,67 @@ flowchart LR
 
 CLI と MCP package は薄く保ち、`packages/core` が config、preset、安全 policy、App Server protocol、structured output、raw log、worktree 隔離を担当します。
 
+## LAN MCP サーバー (Docker)
+
+`packages/mcp` は npm `bin` 経由の stdio transport に加え、Streamable HTTP
+transport を持っています。HTTP モードを使うと 1 台のホストで LAN 内の複数
+MCP クライアント (別マシンの Claude Code、hook、automation) に対して
+codex-sidecar を提供でき、すべてのワークステーションに
+`codex-sidecar-mcp` を入れる必要がなくなります。
+
+リポジトリには `Dockerfile` と `docker-compose.yml` が同梱されており、
+選択した LAN IP のみにバインドします:
+
+```bash
+# sidecar を動かすホスト側
+git clone https://github.com/kitepon-rgb/codex-sidecar.git
+cd codex-sidecar
+docker compose up -d --build
+```
+
+デフォルトは `192.168.1.2:39201/tcp` にバインドし、`~/.codex` (Codex CLI 認証)
+と `~/projects` (対象 repo 群) をコンテナにマウントします。ホストごとに
+env または `.env` で上書きできます:
+
+```bash
+CODEX_SIDECAR_BIND_HOST=10.0.0.5 \
+CODEX_SIDECAR_PORT=39201 \
+CODEX_HOME_HOST=/home/alice/.codex \
+PROJECTS_HOST=/home/alice/projects \
+docker compose up -d --build
+```
+
+UFW などでローカル subnet からのみアクセスできるよう制限します:
+
+```bash
+sudo ufw allow from 192.168.1.0/24 to any port 39201 proto tcp comment 'codex-sidecar-mcp LAN'
+```
+
+bearer token を強制したい場合は compose で `CODEX_SIDECAR_MCP_BEARER` を
+設定するとクライアントに `Authorization: Bearer <token>` を要求します。
+DNS rebinding 保護 (`CODEX_SIDECAR_MCP_ALLOWED_HOSTS`) はデフォルトで
+有効です。MCP SDK は `Host` ヘッダを verbatim で照合するため、bare host
+と `host:port` の両形を列挙する必要があります。
+
+MCP クライアント設定例:
+
+```json
+{
+  "mcpServers": {
+    "codex-sidecar-lan": {
+      "type": "http",
+      "url": "http://192.168.1.2:39201/mcp"
+    }
+  }
+}
+```
+
+呼び出し側はクライアントマシンのパスではなく、サーバー側のパス (例:
+`/projects/<repo>`) を `projectRoot` に渡してください。
+
+詳細は [docs/USAGE.md](docs/USAGE.md#http-transport-and-lan-deployment) を
+参照してください。
+
 ## 詳細
 
 - [docs/USAGE.md](docs/USAGE.md): CLI / MCP / worktree / raw log / structured result の使い方。

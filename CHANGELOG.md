@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `codex-sidecar-mcp` Streamable HTTP transport (selectable via
+  `CODEX_SIDECAR_MCP_TRANSPORT=http`) so the MCP server can run as a LAN
+  service. stdio remains the default transport.
+- HTTP runtime configuration via env: `CODEX_SIDECAR_MCP_HOST`,
+  `CODEX_SIDECAR_MCP_PORT`, `CODEX_SIDECAR_MCP_BEARER`, and
+  `CODEX_SIDECAR_MCP_ALLOWED_HOSTS` (DNS rebinding protection).
+- Optional bearer-token check on every HTTP request when
+  `CODEX_SIDECAR_MCP_BEARER` is set.
+- Stateful session handling (one `mcp-session-id` per client) over POST/GET/DELETE
+  `/mcp`, modelled on the MCP Streamable HTTP spec.
+- `Dockerfile`, `.dockerignore`, and `docker-compose.yml` for running the MCP
+  server as a containerised LAN service alongside other docker-based MCPs.
+- HTTP smoke test in `packages/mcp/src/server-http.test.ts` (initialize,
+  tools/list, bearer rejection, missing-session rejection).
+
+### Documentation
+- LAN MCP deployment notes (Docker compose, UFW pattern, mount layout for
+  `~/.codex` and consumer repos).
+- New `CLAUDE.md` summarising commands, architecture, and invariants for
+  Claude Code.
+
 ## [0.3.1] — 2026-05-08
 
 ### Fixed

@@ -1,0 +1,33 @@
+services:
+  codex-sidecar-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: codex-sidecar-mcp:latest
+    container_name: codex-sidecar-mcp
+    restart: unless-stopped
+    # Bind only on a specific host IP (default: the LAN bridge IP on the
+    # operator's network). Combined with the corresponding UFW rule, the port
+    # is unreachable from WAN or unrelated interfaces. Override per host via
+    # CODEX_SIDECAR_BIND_HOST / CODEX_SIDECAR_PORT in a sibling .env file.
+    ports:
+      - "${CODEX_SIDECAR_BIND_HOST:-192.168.1.2}:${CODEX_SIDECAR_PORT:-39201}:39201/tcp"
+    environment:
+      CODEX_SIDECAR_MCP_TRANSPORT: http
+      CODEX_SIDECAR_MCP_HOST: "0.0.0.0"
+      CODEX_SIDECAR_MCP_PORT: "39201"
+      # CODEX_SIDECAR_MCP_BEARER: "set-a-long-random-token-to-require-auth"
+      # DNS rebinding protection. The MCP SDK matches the verbatim Host header,
+      # so both bare host and host:port must appear here. Override per host.
+      CODEX_SIDECAR_MCP_ALLOWED_HOSTS: "${CODEX_SIDECAR_MCP_ALLOWED_HOSTS:-192.168.1.2:39201,192.168.1.2,127.0.0.1:39201,127.0.0.1,localhost:39201,localhost}"
+    volumes:
+      # Share Codex CLI auth and session state with the host.
+      - ${CODEX_HOME_HOST:-/home/kite/.codex}:/root/.codex
+      # Expose consumer repos under /projects/<name> so LAN clients can pass
+      # projectRoot=/projects/<repo> when calling codex_review / codex_work etc.
+      - ${PROJECTS_HOST:-/home/kite/projects}:/projects
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

@@ -13,7 +13,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.json && node --test dist/index.test.js"
+    "test": "tsc -p tsconfig.json && node --test dist/index.test.js dist/server-http.test.js"
   },
   "dependencies": {
     "codex-sidecar-core": "^0.3.0",

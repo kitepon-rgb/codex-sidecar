@@ -170,6 +170,66 @@ presets:
 See [docs/USAGE.md](docs/USAGE.md) for CLI options, MCP input examples,
 worktree behavior, raw App Server logs, and structured result examples.
 
+## LAN MCP Server (Docker)
+
+`packages/mcp` ships both a stdio transport (the npm `bin` default) and a
+Streamable HTTP transport. The HTTP mode lets a single host serve multiple
+LAN-local MCP clients (Claude Code on other machines, hooks, automation)
+without putting `codex-sidecar-mcp` on every workstation.
+
+The repository includes a `Dockerfile` and `docker-compose.yml` that build the
+MCP server and bind it to a chosen LAN IP only:
+
+```bash
+# On the host that will run the sidecar
+git clone https://github.com/kitepon-rgb/codex-sidecar.git
+cd codex-sidecar
+docker compose up -d --build
+```
+
+The defaults bind to `192.168.1.2:39201/tcp` and mount `~/.codex` (Codex CLI
+auth) and `~/projects` (consumer repos) into the container. Override per host
+via env or a sibling `.env` file:
+
+```bash
+CODEX_SIDECAR_BIND_HOST=10.0.0.5 \
+CODEX_SIDECAR_PORT=39201 \
+CODEX_HOME_HOST=/home/alice/.codex \
+PROJECTS_HOST=/home/alice/projects \
+docker compose up -d --build
+```
+
+Add a firewall rule restricting access to the local subnet, e.g. with UFW:
+
+```bash
+sudo ufw allow from 192.168.1.0/24 to any port 39201 proto tcp comment 'codex-sidecar-mcp LAN'
+```
+
+Optional bearer-token enforcement is available via `CODEX_SIDECAR_MCP_BEARER`
+in compose; clients then must send `Authorization: Bearer <token>`. DNS
+rebinding protection (`CODEX_SIDECAR_MCP_ALLOWED_HOSTS`) is enabled by default
+and must list both the bare host and `host:port` since the MCP SDK matches the
+HTTP `Host` header verbatim.
+
+Sample MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "codex-sidecar-lan": {
+      "type": "http",
+      "url": "http://192.168.1.2:39201/mcp"
+    }
+  }
+}
+```
+
+Callers must pass server-side paths in `projectRoot` (for example
+`/projects/<repo>`), not paths from the client machine.
+
+See [docs/USAGE.md](docs/USAGE.md#http-transport-and-lan-deployment) for the
+full HTTP transport reference, env vars, and operational commands.
+
 ## Ecosystem Fit
 
 `codex-sidecar` was built for an environment where Claude Code is the primary

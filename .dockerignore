@@ -1,0 +1,17 @@
+.git
+.github
+.vscode
+.codegraph
+.codex-sidecar
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.DS_Store
+docs/archive
+examples
+*.md
+!README.md
+Dockerfile
+.dockerignore
+docker-compose.yml

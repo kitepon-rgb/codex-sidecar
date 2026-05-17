@@ -256,6 +256,146 @@ codex-sidecar work \
   "Create docs/codex-work-smoke.md with one short smoke-test sentence."
 ```
 
+## HTTP Transport and LAN Deployment
+
+`packages/mcp` selects its transport at startup. The default is stdio (so the
+`codex-sidecar-mcp` npm bin keeps working unchanged). Setting
+`CODEX_SIDECAR_MCP_TRANSPORT=http` switches to the MCP Streamable HTTP
+transport so the same MCP server can run as a LAN service.
+
+Environment variables (HTTP mode):
+
+| Variable | Default | Notes |
+|---|---|---|
+| `CODEX_SIDECAR_MCP_TRANSPORT` | `stdio` | Set to `http` for the Streamable HTTP transport. |
+| `CODEX_SIDECAR_MCP_HOST` | `127.0.0.1` | Bind address. Use a LAN IP for cross-host access. |
+| `CODEX_SIDECAR_MCP_PORT` | `39201` | TCP port. |
+| `CODEX_SIDECAR_MCP_BEARER` | unset | When set, every request must include `Authorization: Bearer <token>`. |
+| `CODEX_SIDECAR_MCP_ALLOWED_HOSTS` | derived from host/port | Comma-separated DNS rebinding allowlist. **Must include both bare host and `host:port`.** |
+
+The HTTP server exposes a single endpoint at `/mcp` and accepts `POST`
+(initialize and tool calls), `GET` (server-initiated SSE stream), and `DELETE`
+(session close). Sessions are stateful: the first POST without an
+`mcp-session-id` header starts a session if the body is an `initialize`
+request, and subsequent requests must echo the returned `mcp-session-id`
+header. Non-initialize POSTs without a session id return 400.
+
+### Docker compose (LAN sidecar)
+
+The repository ships a `Dockerfile` and `docker-compose.yml` that build the
+MCP package and bind it to a chosen LAN IP. From a clean clone on the host
+that will run the sidecar:
+
+```bash
+docker compose up -d --build
+docker compose logs -f --tail=50
+```
+
+The compose file parameterizes bind host, port, and host paths via env:
+
+| Compose env | Default | Purpose |
+|---|---|---|
+| `CODEX_SIDECAR_BIND_HOST` | `192.168.1.2` | Host IP that the container's port is published on. Use a LAN IP, not `0.0.0.0`. |
+| `CODEX_SIDECAR_PORT` | `39201` | Published TCP port. |
+| `CODEX_HOME_HOST` | `/home/kite/.codex` | Host path mounted to `/root/.codex` inside the container, sharing Codex CLI auth and session state. |
+| `PROJECTS_HOST` | `/home/kite/projects` | Host path mounted to `/projects`. LAN clients pass `projectRoot=/projects/<repo>` (server-side paths). |
+| `CODEX_SIDECAR_MCP_ALLOWED_HOSTS` | LAN bind variants | Override when binding to a different host. |
+
+Override via env or a sibling `.env` file:
+
+```bash
+CODEX_SIDECAR_BIND_HOST=10.0.0.5 \
+PROJECTS_HOST=/srv/work \
+docker compose up -d --build
+```
+
+Add a matching firewall rule. UFW example:
+
+```bash
+sudo ufw allow from 192.168.1.0/24 to any port 39201 proto tcp \
+  comment 'codex-sidecar-mcp LAN'
+```
+
+### MCP client configuration
+
+```json
+{
+  "mcpServers": {
+    "codex-sidecar-lan": {
+      "type": "http",
+      "url": "http://192.168.1.2:39201/mcp"
+    }
+  }
+}
+```
+
+If a bearer token is enforced server-side, send it on every request:
+
+```json
+{
+  "mcpServers": {
+    "codex-sidecar-lan": {
+      "type": "http",
+      "url": "http://192.168.1.2:39201/mcp",
+      "headers": {
+        "authorization": "Bearer <token>"
+      }
+    }
+  }
+}
+```
+
+### Path conventions over LAN
+
+`projectRoot` paths are interpreted by the MCP server, not the client.
+With the default compose mount, LAN clients pass `projectRoot=/projects/<repo>`
+to point at the host's `~/projects/<repo>`. The client machine's local path
+is irrelevant. The same applies to `configFile` (relative to `projectRoot`).
+
+### Session lifecycle (raw HTTP)
+
+For debugging, the handshake from a shell looks like:
+
+```bash
+# Start a session.
+curl -sS -D /tmp/h.txt -X POST http://192.168.1.2:39201/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"smoke","version":"0"},"capabilities":{}}}'
+SESSION=$(grep -i '^mcp-session-id' /tmp/h.txt | awk '{print $2}' | tr -d '\r\n')
+
+# Confirm the session is ready.
+curl -sS -X POST http://192.168.1.2:39201/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -H "mcp-session-id: $SESSION" \
+  --data '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+# List tools.
+curl -sS -X POST http://192.168.1.2:39201/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -H "mcp-session-id: $SESSION" \
+  --data '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+```
+
+### Operational commands
+
+```bash
+docker compose ps
+docker compose logs -f --tail=100
+docker compose restart
+docker compose down                       # stop and remove container
+docker compose up -d --build              # apply source changes
+```
+
+To remove every trace of the LAN deployment from a host:
+
+```bash
+docker compose down
+sudo ufw delete allow from 192.168.1.0/24 to any port 39201 proto tcp
+```
+
 ## MCP Tools
 
 `packages/mcp` exposes six tool descriptors backed by the same core execution

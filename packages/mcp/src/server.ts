@@ -9,6 +9,10 @@ import {
   toolDescriptors,
   type CodexSidecarToolName,
 } from "./index.js";
+import {
+  startCodexSidecarMcpHttpServerFromEnv,
+  type CodexSidecarMcpHttpServer,
+} from "./server-http.js";
 
 const toolInputSchema = {
   projectRoot: z.string().min(1).describe("Absolute path to the project root containing .codex-sidecar.yml."),
@@ -48,7 +52,7 @@ const toolInputSchema = {
     .describe("Optional sidecar context blocks, such as Caveat caveat_entry blocks."),
 };
 
-export async function startCodexSidecarMcpStdioServer(): Promise<void> {
+export function buildCodexSidecarMcpServer(): McpServer {
   const server = new McpServer(
     { name: "codex-sidecar", version: "0.3.1" },
     { capabilities: { tools: {} } },
@@ -76,6 +80,11 @@ export async function startCodexSidecarMcpStdioServer(): Promise<void> {
     );
   }
 
+  return server;
+}
+
+export async function startCodexSidecarMcpStdioServer(): Promise<void> {
+  const server = buildCodexSidecarMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
@@ -88,9 +97,32 @@ const invokedPath = process.argv[1] ?? "";
 const thisPath = fileURLToPath(import.meta.url);
 
 if (invokedPath && normalizeEntrypointPath(invokedPath) === normalizeEntrypointPath(thisPath)) {
-  startCodexSidecarMcpStdioServer().catch((error: unknown) => {
+  startFromEnv().catch((error: unknown) => {
     const msg = error instanceof Error ? error.message : String(error);
     process.stderr.write(`[codex-sidecar:mcp:error] ${msg}\n`);
     process.exit(1);
   });
+}
+
+async function startFromEnv(): Promise<void> {
+  const transport = (process.env.CODEX_SIDECAR_MCP_TRANSPORT ?? "stdio").toLowerCase();
+  if (transport === "http") {
+    const http: CodexSidecarMcpHttpServer = await startCodexSidecarMcpHttpServerFromEnv();
+    process.stderr.write(
+      `[codex-sidecar:mcp:http] listening on ${http.host}:${http.port} (bearer=${http.bearerEnabled ? "enabled" : "disabled"})\n`,
+    );
+    const onSignal = (sig: NodeJS.Signals): void => {
+      process.stderr.write(`[codex-sidecar:mcp:http] received ${sig}, shutting down\n`);
+      http.close().finally(() => process.exit(0));
+    };
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+    return;
+  }
+  if (transport !== "stdio") {
+    throw new Error(
+      `CODEX_SIDECAR_MCP_TRANSPORT must be "stdio" or "http"; received "${transport}"`,
+    );
+  }
+  await startCodexSidecarMcpStdioServer();
 }

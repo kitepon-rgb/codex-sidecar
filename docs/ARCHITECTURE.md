@@ -133,8 +133,26 @@ when invoked through npm's symlinked command path, because Claude Code and other
 MCP clients normally launch `codex-sidecar-mcp` from PATH rather than importing
 the real `dist/server.js` file directly.
 
+Transports are selected at runtime, not at build time. Two are supported:
+
+- **stdio** (default): the existing npm-bin path, used by Claude Code, MCP
+  inspector, and local hooks. Tools and call semantics are identical to the
+  HTTP transport — only the framing differs.
+- **Streamable HTTP** (`CODEX_SIDECAR_MCP_TRANSPORT=http`): a long-running
+  process bound to a chosen host/port, serving multiple LAN clients. Sessions
+  are in-memory per Node process; resumability via `EventStore` is not enabled
+  by default. DNS rebinding protection and optional bearer-token auth are
+  configured through env so deployment policy lives in compose/systemd, not in
+  the codebase.
+
 Read-only tools should be easy to call. Write-capable tools must require an
 explicit project config and must surface safety refusals as structured errors.
+
+The repository ships a `Dockerfile` and `docker-compose.yml` for the HTTP
+transport. The image pins `@openai/codex` and mounts the host's `~/.codex` so
+the Codex CLI inside the container reuses host authentication. Server-side
+`projectRoot` paths under `/projects/<repo>` map to host paths under the
+configured `PROJECTS_HOST`.
 
 ## Suggested Core Modules
 
