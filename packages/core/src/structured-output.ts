@@ -124,6 +124,9 @@ export function parseStructuredSidecarOutput(request: SidecarRequest, assistantT
       structured.tests = parseTests(output.tests, "tests", errors, true);
       structured.risks = parseRisks(output.risks, "risks", errors, true);
       break;
+    case "generate":
+      // generate bypasses SidecarResult parsing; handled by buildGenerateResult.
+      break;
   }
 
   if (errors.length > 0) {
@@ -205,6 +208,9 @@ function workflowSchema(workflow: SidecarRequest["workflow"]): string {
         "- tests: Array<{ command: string, status: \"passed\" | \"failed\" | \"not-run\", summary?: string }>",
         "- risks: Array<{ severity, title, detail, affectedFiles, suggestedVerification?: string, confidence, basis }>",
       ].join("\n");
+    case "generate":
+      // generate uses a separate prompt (buildGenerationPrompt); never reaches here.
+      return "";
   }
 }
 

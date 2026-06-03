@@ -6,7 +6,10 @@ and from ecosystem tools that want to reuse raw logs or structured results.
 `codex-sidecar` always loads a project-local `.codex-sidecar.yml`, normalizes
 the request, runs the relevant workflow, and returns one `SidecarResult` JSON
 object. Read-only workflows run directly through Codex App Server. `codex_work`
-runs Codex App Server inside an isolated git worktree.
+runs Codex App Server inside an isolated git worktree. The `generate` workflow
+is a read-only exception: instead of a code-review-shaped `SidecarResult`, it
+returns the model's raw JSON value in the `generated` field (see
+[Generate Workflow](#generate-workflow)).
 
 ## Install And Build
 
@@ -177,7 +180,7 @@ is resolved, those flags are omitted.
 The CLI shape is:
 
 ```bash
-codex-sidecar <review|explore|work|opinion|risk-check|auditor|diagnostics> [options] [prompt]
+codex-sidecar <review|explore|work|opinion|risk-check|auditor|generate|diagnostics> [options] [prompt]
 ```
 
 The local development equivalent is:
@@ -192,6 +195,10 @@ Options:
 - `--config <file>`: config filename relative to `projectRoot`. Defaults to
   `.codex-sidecar.yml`.
 - `--preset <name>`: named preset from config.
+- `--output-contract <text>`: `generate` only. JSON output contract/schema the
+  generated JSON must conform to. Injected verbatim into the generation prompt.
+- `--output-contract-file <file>`: `generate` only. Read the output contract
+  from a file instead of an inline string.
 - `--model <model>`: explicit Codex model override for this request.
 - `--model-reasoning-effort <effort>`: explicit reasoning effort override.
   Accepted values are `low`, `medium`, `high`, and `xhigh`.
@@ -254,6 +261,55 @@ codex-sidecar work \
   --preset work \
   --remove-worktree \
   "Create docs/codex-work-smoke.md with one short smoke-test sentence."
+```
+
+### Generate Workflow
+
+`generate` drives Codex App Server to produce arbitrary structured JSON for a
+freeform task, instead of the code-review-shaped `SidecarResult` payload the
+other workflows return. It is read-only and does not require a git worktree, but
+it still loads the project `.codex-sidecar.yml` and runs with a `cwd` like every
+other workflow.
+
+```bash
+codex-sidecar generate \
+  --project /path/to/project \
+  --output-contract '{ "items": [ { "en": "string", "ja": "string" } ] }' \
+  "Write 5 short English example sentences for a beginner, each with a natural Japanese translation."
+```
+
+Contract and behavior:
+
+- The prompt is required. A `generate` request with no prompt is refused with
+  `SAFETY_REFUSAL`.
+- `--output-contract` (or the `outputContract` MCP field) is optional and is
+  injected verbatim into the prompt as the JSON shape the model must follow.
+- codex-sidecar guarantees only that the model returned one valid JSON object or
+  array, surfaced in `SidecarResult.generated`. If the model returns prose or a
+  bare primitive, the result is `failed` with `error.code = "PROTOCOL_ERROR"` —
+  there is no silent fallback or repair.
+- Domain validation (languages, required fields, value ranges) is intentionally
+  the caller's responsibility. codex-sidecar does not mutate or drop generated
+  content.
+
+Result excerpt:
+
+```json
+{
+  "status": "ok",
+  "workflow": "generate",
+  "summary": "Codex App Server returned a JSON object with 1 top-level key(s).",
+  "confidence": { "level": "medium" },
+  "recommendedNextAction": "Validate the generated payload against your domain rules before persisting.",
+  "generated": {
+    "items": [
+      { "en": "I walk to school every morning.", "ja": "私は毎朝歩いて学校に行きます。" }
+    ]
+  },
+  "sourceBoundaries": [
+    { "label": "Codex App Server", "source": "local codex app-server stdio", "trust": "generated" }
+  ]
+}
 ```
 
 ## HTTP Transport and LAN Deployment
@@ -398,7 +454,7 @@ sudo ufw delete allow from 192.168.1.0/24 to any port 39201 proto tcp
 
 ## MCP Tools
 
-`packages/mcp` exposes six tool descriptors backed by the same core execution
+`packages/mcp` exposes seven tool descriptors backed by the same core execution
 path as the CLI:
 
 - `codex_review`
@@ -407,6 +463,7 @@ path as the CLI:
 - `codex_opinion`
 - `codex_risk_check`
 - `codex_auditor`
+- `codex_generate`
 
 The MCP server is a stdio process. Clients should launch the `codex-sidecar-mcp`
 command from PATH; the package supports npm-style symlinked bin paths and does
@@ -586,6 +643,7 @@ Workflow-specific fields:
 - `opinion`: `recommendation`, `objections`, `assumptions`, `failureModes`.
 - `risk-check`: `risks`.
 - `auditor`: `pass`, `missingTools`.
+- `generate`: `generated` (the raw JSON object or array Codex returned).
 - `work`: `changedFiles`, `tests`, `risks`, `worktreePath`,
   `worktreePreserved`.
 

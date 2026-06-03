@@ -92,6 +92,7 @@ inspect the diff before applying anything.
 | `opinion` | `codex_opinion` | Challenge a plan or design | No | `recommendation`, `objections`, `assumptions` |
 | `risk-check` | `codex_risk_check` | Focus on secrets, MCP, OAuth, hooks, Docker, CI | No | `risks`, `sourceBoundaries` |
 | `auditor` | `codex_auditor` | Return a primary tool-use auditor judgment | No | `pass`, `missingTools` |
+| `generate` | `codex_generate` | Generate arbitrary structured JSON for a freeform task | No | `generated` (raw JSON object/array) |
 | `work` | `codex_work` | Implement a small scoped change | Isolated worktree only | `changedFiles`, `tests`, `worktreePath` |
 
 Every workflow returns one `SidecarResult` JSON object. Downstream tools should

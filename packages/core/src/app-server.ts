@@ -1,5 +1,6 @@
 import type { ModelReasoningEffort, SidecarRequest } from "./types.js";
 import { buildStructuredOutputPrompt } from "./structured-output.js";
+import { buildGenerationPrompt } from "./generate.js";
 
 export const APP_SERVER_PROTOCOL_METHODS = {
   initialize: "initialize",
@@ -149,11 +150,17 @@ export function buildTurnStartDraft(request: SidecarRequest, threadId: string): 
     method: APP_SERVER_PROTOCOL_METHODS.turnStart,
     params: {
       threadId,
-      input: [{ type: "text", text: buildStructuredOutputPrompt(request), text_elements: [] }],
+      input: [{ type: "text", text: buildTurnPromptText(request), text_elements: [] }],
       cwd: request.projectRoot,
       approvalPolicy: "never",
     },
   };
+}
+
+function buildTurnPromptText(request: SidecarRequest): string {
+  return request.workflow === "generate"
+    ? buildGenerationPrompt(request)
+    : buildStructuredOutputPrompt(request);
 }
 
 export function buildTurnInterruptDraft(threadId: string, turnId: string): AppServerTurnInterruptDraft {

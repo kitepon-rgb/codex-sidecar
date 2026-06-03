@@ -6,6 +6,7 @@ export * from "./app-server-logs.js";
 export * from "./app-server-runner.js";
 export * from "./config.js";
 export * from "./context.js";
+export * from "./generate.js";
 export * from "./paths.js";
 export * from "./presets.js";
 export * from "./profiles.js";

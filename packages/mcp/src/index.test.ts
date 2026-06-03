@@ -118,6 +118,41 @@ test("handleCodexSidecarToolCall routes codex_auditor through core", async () =>
   assert.equal(result.structuredContent.missingTools?.[0]?.name, "mcp__caveat__caveat_search");
 });
 
+test("tool descriptors expose codex_generate as a read-only workflow with an outputContract field", () => {
+  const descriptor = toolDescriptors.find((tool) => tool.name === "codex_generate");
+  assert.ok(descriptor);
+  assert.equal(descriptor.workflow, "generate");
+  assert.equal(descriptor.readonly, true);
+  assert.equal(descriptor.requiresExplicitOptIn, false);
+  const outputContract = descriptor.inputSchema.properties.outputContract as { type: string };
+  assert.equal(outputContract.type, "string");
+});
+
+test("handleCodexSidecarToolCall routes codex_generate through core with outputContract", async () => {
+  let capturedInput: RequestInput | undefined;
+  const result = await handleCodexSidecarToolCall(
+    "codex_generate",
+    {
+      projectRoot: "/repo",
+      prompt: "Generate two example sentences as JSON.",
+      outputContract: '{ "items": [{ "en": string, "ja": string }] }',
+      dryRun: true,
+    },
+    {
+      loadConfig: async () => config,
+      runRequest: async (_config, input) => {
+        capturedInput = input;
+        return { ...okResult(input), generated: { items: [{ en: "Hi.", ja: "やあ。" }] } };
+      },
+    },
+  );
+
+  assert.equal(capturedInput?.workflow, "generate");
+  assert.equal(capturedInput?.outputContract, '{ "items": [{ "en": string, "ja": string }] }');
+  assert.equal(result.isError, false);
+  assert.deepEqual(result.structuredContent.generated, { items: [{ en: "Hi.", ja: "やあ。" }] });
+});
+
 test("handleCodexSidecarToolCall refuses codex_work without explicit opt-in", async () => {
   const result = await handleCodexSidecarToolCall("codex_work", { projectRoot: "/repo", prompt: "Change code." });
 

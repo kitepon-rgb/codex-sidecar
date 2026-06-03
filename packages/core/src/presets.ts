@@ -16,6 +16,7 @@ export interface RequestInput {
   projectRoot: string;
   prompt?: string;
   preset?: string;
+  outputContract?: string;
   readonly?: boolean;
   requireWorktree?: boolean;
   focus?: string[];
@@ -65,6 +66,7 @@ export function normalizeSidecarRequest(config: SidecarConfig, input: RequestInp
     projectRoot: input.projectRoot,
     prompt: input.prompt ?? preset?.prompt,
     preset: input.preset,
+    outputContract: input.outputContract,
     readonly: input.readonly ?? preset?.readonly ?? config.defaults?.readonly ?? workflow !== "work",
     requireWorktree: input.requireWorktree ?? preset?.require_worktree ?? workflow === "work",
     focus: input.focus ?? preset?.focus ?? [],

@@ -23,6 +23,7 @@ export const TOOL_NAMES = [
   "codex_opinion",
   "codex_risk_check",
   "codex_auditor",
+  "codex_generate",
 ] as const;
 
 export type CodexSidecarToolName = (typeof TOOL_NAMES)[number];
@@ -46,6 +47,7 @@ export interface CodexSidecarToolInput {
   configFile?: string;
   prompt?: string;
   preset?: string;
+  outputContract?: string;
   model?: string;
   modelReasoningEffort?: ModelReasoningEffort;
   dryRun?: boolean;
@@ -79,6 +81,11 @@ const commonProperties = {
   preset: {
     type: "string",
     description: "Optional preset name from .codex-sidecar.yml.",
+  },
+  outputContract: {
+    type: "string",
+    description:
+      "codex_generate only: JSON output contract/schema the generated JSON must conform to. Injected verbatim into the generation prompt.",
   },
   configFile: {
     type: "string",
@@ -131,6 +138,7 @@ export const toolDescriptors: McpToolDescriptor[] = [
   descriptor("codex_opinion", "opinion", "Ask Codex for a design second opinion and strongest objections.", true),
   descriptor("codex_risk_check", "risk-check", "Ask Codex to focus on high-risk areas such as MCP, OAuth, secrets, hooks, Docker, and CI.", true),
   descriptor("codex_auditor", "auditor", "Ask Codex for a primary tool-use auditor judgment with pass and missingTools.", true),
+  descriptor("codex_generate", "generate", "Ask Codex to generate arbitrary structured JSON for a freeform task; returns the raw JSON in the result's generated field.", true),
 ];
 
 export function workflowForTool(toolName: CodexSidecarToolName): SidecarWorkflow {
@@ -174,6 +182,7 @@ export async function handleCodexSidecarToolCall(
       projectRoot: input.value.projectRoot,
       prompt: input.value.prompt,
       preset: input.value.preset,
+      outputContract: input.value.outputContract,
       model: input.value.model,
       modelReasoningEffort: input.value.modelReasoningEffort,
       dryRun: input.value.dryRun,
@@ -237,6 +246,7 @@ function parseToolInput(rawInput: unknown): { value: CodexSidecarToolInput } | {
   copyOptionalString(rawInput, input, "configFile", errors);
   copyOptionalString(rawInput, input, "prompt", errors);
   copyOptionalString(rawInput, input, "preset", errors);
+  copyOptionalString(rawInput, input, "outputContract", errors);
   copyOptionalString(rawInput, input, "model", errors);
   copyOptionalBoolean(rawInput, input, "dryRun", errors);
   copyOptionalBoolean(rawInput, input, "interruptOnTimeout", errors);
@@ -285,7 +295,7 @@ function parseToolInput(rawInput: unknown): { value: CodexSidecarToolInput } | {
 function copyOptionalString(
   source: Record<string, unknown>,
   target: CodexSidecarToolInput,
-  key: "configFile" | "prompt" | "preset" | "model",
+  key: "configFile" | "prompt" | "preset" | "outputContract" | "model",
   errors: string[],
 ): void {
   if (!(key in source)) {

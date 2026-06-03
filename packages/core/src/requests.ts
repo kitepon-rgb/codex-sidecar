@@ -28,6 +28,7 @@ export async function runSidecarRequest(
       projectRoot: input.projectRoot,
       prompt: input.prompt,
       preset: input.preset,
+      outputContract: input.outputContract,
       readonly: input.readonly ?? input.workflow !== "work",
       requireWorktree: input.requireWorktree ?? input.workflow === "work",
       focus: input.focus ?? [],

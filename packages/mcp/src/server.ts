@@ -22,6 +22,12 @@ const toolInputSchema = {
     .describe("Optional config filename relative to projectRoot. Defaults to .codex-sidecar.yml."),
   prompt: z.string().optional().describe("User request or task-specific instruction for Codex."),
   preset: z.string().optional().describe("Optional preset name from .codex-sidecar.yml."),
+  outputContract: z
+    .string()
+    .optional()
+    .describe(
+      "codex_generate only: JSON output contract/schema the generated JSON must conform to. Injected verbatim into the generation prompt.",
+    ),
   model: z.string().min(1).optional().describe("Explicit Codex model to pass to App Server startup."),
   modelReasoningEffort: z
     .enum(["low", "medium", "high", "xhigh"])

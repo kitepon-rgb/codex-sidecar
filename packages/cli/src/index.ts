@@ -20,6 +20,7 @@ interface CliOptions {
   configFile: string;
   preset?: string;
   prompt?: string;
+  outputContract?: string;
   model?: string;
   modelReasoningEffort?: ModelReasoningEffort;
   json: boolean;
@@ -75,6 +76,7 @@ try {
     projectRoot: parsed.projectRoot,
     preset: resolvedPreset,
     prompt: parsed.prompt,
+    outputContract: parsed.outputContract,
     model: parsed.model,
     modelReasoningEffort: parsed.modelReasoningEffort,
     turnTimeoutMs: parsed.turnTimeoutMs,
@@ -126,6 +128,16 @@ function parseArgs(args: string[]): CliOptions {
 
     if (arg === "--preset") {
       options.preset = requireValue(args, (index += 1), "--preset");
+      continue;
+    }
+
+    if (arg === "--output-contract") {
+      options.outputContract = requireValue(args, (index += 1), "--output-contract");
+      continue;
+    }
+
+    if (arg === "--output-contract-file") {
+      options.outputContract = readFileSync(requireValue(args, (index += 1), "--output-contract-file"), "utf8");
       continue;
     }
 
@@ -217,7 +229,7 @@ function parseModelReasoningEffort(value: string, option: string): ModelReasonin
 
 function printUsage(): void {
   console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics> [options] [prompt]`);
-  console.error("Options: --project <dir> --config <file> --preset <name> --model <model> --model-reasoning-effort <effort> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
+  console.error("Options: --project <dir> --config <file> --preset <name> --output-contract <text> --output-contract-file <file> --model <model> --model-reasoning-effort <effort> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
 }
 
 function printJson(value: unknown): void {

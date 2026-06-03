@@ -120,6 +120,69 @@ test("runReadOnlyAppServerRequest normalizes review-specific structured fields",
   await rm(eventLogDir, { recursive: true, force: true });
 });
 
+test("runReadOnlyAppServerRequest returns the raw payload for the generate workflow", async () => {
+  const eventLogDir = await makeTempLogDir();
+  const generateRequest: SidecarRequest = {
+    ...request,
+    workflow: "generate",
+    prompt: "Generate two example sentences as JSON.",
+    outputContract: '{ "items": [{ "en": string, "ja": string }] }',
+  };
+  const generatedJson = JSON.stringify({
+    items: [
+      { en: "I go to school every day.", ja: "私は毎日学校に行きます。" },
+      { en: "She likes music.", ja: "彼女は音楽が好きです。" },
+    ],
+  });
+  const client = new FakeAppServerClient([
+    {
+      kind: "notification",
+      method: "item/agentMessage/delta",
+      params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: generatedJson },
+    },
+    {
+      kind: "notification",
+      method: "turn/completed",
+      params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed", error: null } },
+    },
+  ]);
+
+  const result = await runReadOnlyAppServerRequest(generateRequest, { client, eventLogDir });
+
+  assert.equal(result.status, "ok");
+  assert.equal(result.workflow, "generate");
+  assert.deepEqual(result.generated, JSON.parse(generatedJson));
+  assert.equal(result.sourceBoundaries?.[0]?.trust, "generated");
+  assert.ok(result.rawEventLogRef?.startsWith(eventLogDir));
+
+  await rm(eventLogDir, { recursive: true, force: true });
+});
+
+test("runReadOnlyAppServerRequest fails the generate workflow on non-JSON output", async () => {
+  const eventLogDir = await makeTempLogDir();
+  const generateRequest: SidecarRequest = { ...request, workflow: "generate", prompt: "Generate JSON." };
+  const client = new FakeAppServerClient([
+    {
+      kind: "notification",
+      method: "item/agentMessage/delta",
+      params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: "Sure, here is the JSON you asked for." },
+    },
+    {
+      kind: "notification",
+      method: "turn/completed",
+      params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed", error: null } },
+    },
+  ]);
+
+  const result = await runReadOnlyAppServerRequest(generateRequest, { client, eventLogDir });
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.error?.code, "PROTOCOL_ERROR");
+  assert.match(result.error?.message ?? "", /generate output was not valid JSON/);
+
+  await rm(eventLogDir, { recursive: true, force: true });
+});
+
 test("runReadOnlyAppServerRequest fails explicitly on malformed structured output", async () => {
   const eventLogDir = await makeTempLogDir();
   const client = new FakeAppServerClient([

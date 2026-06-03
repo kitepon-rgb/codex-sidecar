@@ -120,6 +120,7 @@ Provides an MCP server for Claude Code:
 - `codex_opinion`
 - `codex_risk_check`
 - `codex_auditor`
+- `codex_generate`
 
 The MCP layer exposes stable tool schemas and translates calls into the same
 `core` request types used by the CLI. Read-only tools use the shared core

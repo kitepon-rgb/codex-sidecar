@@ -11,6 +11,10 @@ export function validateRequestSafety(request: SidecarRequest): SafetyValidation
     errors.push(`${request.workflow} must be read-only`);
   }
 
+  if (request.workflow === "generate" && !request.prompt?.trim()) {
+    errors.push("generate requires a non-empty prompt");
+  }
+
   if (request.workflow === "work") {
     if (request.readonly) {
       errors.push("codex_work must be explicitly write-capable");

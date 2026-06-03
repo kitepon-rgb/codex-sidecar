@@ -2,6 +2,7 @@ import type { AppServerThreadStartResponse, AppServerTurnStartResponse } from ".
 import { AppServerClient, type AppServerInitializeResult, type AppServerWireNotification } from "./app-server-client.js";
 import { collectAgentMessageText, findTurnCompletion } from "./app-server-events.js";
 import { createAppServerEventLogger, type AppServerEventLogger } from "./app-server-logs.js";
+import { buildGenerateResult } from "./generate.js";
 import { errorResult, modelPolicyInfo, toSidecarError } from "./results.js";
 import { mergeStructuredOutput, parseStructuredSidecarOutput } from "./structured-output.js";
 import type { SidecarRequest, SidecarResult } from "./types.js";
@@ -143,6 +144,10 @@ export async function runReadOnlyAppServerRequest(
     const summary = collectAgentMessageText(client.notifications, filter).trim();
     if (!summary) {
       throw new Error(`PROTOCOL_ERROR: App Server turn completed without assistant message text for thread=${threadId} turn=${turnId}`);
+    }
+
+    if (request.workflow === "generate") {
+      return buildGenerateResult(request, summary, logger.ref);
     }
 
     const structuredOutput = parseStructuredSidecarOutput(request, summary);

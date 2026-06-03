@@ -1,4 +1,4 @@
-export const WORKFLOWS = ["review", "explore", "work", "opinion", "risk-check", "auditor"] as const;
+export const WORKFLOWS = ["review", "explore", "work", "opinion", "risk-check", "auditor", "generate"] as const;
 
 export const DEFAULT_TURN_TIMEOUT_MS = 10 * 60_000;
 
@@ -81,6 +81,8 @@ export interface SidecarRequest {
   projectRoot: string;
   prompt?: string;
   preset?: string;
+  /** generate workflow only: caller-supplied JSON output contract injected into the prompt. */
+  outputContract?: string;
   readonly: boolean;
   requireWorktree: boolean;
   focus: string[];
@@ -142,6 +144,8 @@ export interface SidecarResult {
   objections?: string[];
   assumptions?: string[];
   failureModes?: string[];
+  /** generate workflow only: the raw JSON value (object or array) Codex returned. */
+  generated?: unknown;
   rawEventLogRef?: string;
   normalizedRequest?: SidecarRequest;
   modelPolicy?: ModelPolicyInfo;
