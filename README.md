@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/og.png" alt="codex-sidecar — safe Codex calls for real repos" width="100%">
+</p>
+
 # codex-sidecar
 
 [![npm version](https://img.shields.io/npm/v/codex-sidecar-cli.svg?color=cb3837&logo=npm&label=codex-sidecar-cli)](https://www.npmjs.com/package/codex-sidecar-cli)
