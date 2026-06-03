@@ -35,7 +35,7 @@ the CLI is available. The local graph for this repository was initialized on
 Useful checks:
 
 ```bash
-rtk codegraph status /home/kite/projects/codex-sidecar
+rtk codegraph status /path/to/codex-sidecar
 ```
 
 Do not treat CodeGraph output as a replacement for direct file verification when

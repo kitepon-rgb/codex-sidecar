@@ -1,16 +1,18 @@
 # codex-sidecar
 
-<p align="center">
-  <img src=".github/og.svg" alt="codex-sidecar overview" width="100%">
-</p>
-
+[![npm version](https://img.shields.io/npm/v/codex-sidecar-cli.svg?color=cb3837&logo=npm&label=codex-sidecar-cli)](https://www.npmjs.com/package/codex-sidecar-cli)
+[![npm version](https://img.shields.io/npm/v/codex-sidecar-mcp.svg?color=cb3837&logo=npm&label=codex-sidecar-mcp)](https://www.npmjs.com/package/codex-sidecar-mcp)
 [![CI](https://github.com/kitepon-rgb/codex-sidecar/actions/workflows/ci.yml/badge.svg)](https://github.com/kitepon-rgb/codex-sidecar/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![license](https://img.shields.io/npm/l/codex-sidecar-cli.svg?color=blue)](LICENSE)
+[![node](https://img.shields.io/node/v/codex-sidecar-cli.svg?color=339933&logo=node.js&logoColor=white)](https://nodejs.org)
+[![GitHub release](https://img.shields.io/github/v/release/kitepon-rgb/codex-sidecar?color=24292e&logo=github)](https://github.com/kitepon-rgb/codex-sidecar/releases)
 
-> Run Codex as a safe sidecar for reviews, exploration, risk checks, and small
-> scoped fixes without handing it your active working tree.
+**English** · [日本語](README.ja.md)
 
-[日本語 README](README.ja.md) | [Usage](docs/USAGE.md) | [Architecture](docs/ARCHITECTURE.md) | [Protocol](docs/PROTOCOL.md)
+> **Run Codex as a safe, isolated sidecar — and get machine-readable answers, not chat transcripts.**
+> `codex-sidecar` lets humans, Claude Code, MCP clients, and hooks ask Codex for code review, exploration, risk checks, and scoped fixes, returning one structured `SidecarResult` JSON per call without ever touching your active working tree.
+
+[Usage](docs/USAGE.md) · [Architecture](docs/ARCHITECTURE.md) · [Protocol](docs/PROTOCOL.md)
 
 `codex-sidecar` is a shared execution layer for calling Codex from another
 developer workflow. It gives humans, Claude Code, MCP clients, hooks, and other
@@ -89,7 +91,30 @@ inspect the diff before applying anything.
 | `work` | `codex_work` | Implement a small scoped change | Isolated worktree only | `changedFiles`, `tests`, `worktreePath` |
 
 Every workflow returns one `SidecarResult` JSON object. Downstream tools should
-consume the structured fields instead of scraping prose.
+consume the structured fields instead of scraping prose. A `codex_review` call
+returns something like:
+
+```json
+{
+  "status": "ok",
+  "workflow": "review",
+  "summary": "No blocking regressions found.",
+  "confidence": {
+    "level": "medium",
+    "rationale": "The review inspected the changed files but did not run tests."
+  },
+  "recommendedNextAction": "Run the relevant package tests before merging.",
+  "fileReferences": [
+    { "path": "packages/core/src/requests.ts", "line": 42, "label": "request execution boundary" }
+  ],
+  "rawEventLogRef": "/path/to/project/.codex-sidecar/logs/app-server/..."
+}
+```
+
+Workflow-specific fields layer on top of these common fields — `review` adds
+`findings` / `missingTests` / `residualRisks`, `work` adds `changedFiles` /
+`tests` / `worktreePath`, and so on. See
+[docs/USAGE.md](docs/USAGE.md#structured-result-contract) for the full contract.
 
 ## Why Not Just Use...
 
@@ -236,12 +261,12 @@ full HTTP transport reference, env vars, and operational commands.
 agent and Codex is a controlled sidecar. It is designed to compose with nearby
 tools without requiring them:
 
-- Relay stores and retrieves cross-device Claude conversation context.
-- Throughline compresses Claude Code context and carries explicit handoffs.
-- Caveat stores long-term trap memory and repo-specific gotchas.
-- SmartClaude measures and optimizes token/context cost.
+- [Relay](https://github.com/kitepon-rgb/Relay) stores and retrieves cross-device Claude conversation context.
+- [Throughline](https://github.com/kitepon-rgb/Throughline) compresses Claude Code context and carries explicit handoffs.
+- [Caveat](https://github.com/kitepon-rgb/Caveat) stores long-term trap memory and repo-specific gotchas.
+- [SmartClaude](https://github.com/kitepon-rgb/SmartClaude) measures and optimizes token/context cost.
 - CodeGraph provides local symbol graph context when a repository is initialized.
-- image-generator and IP-MCP provide MCP/OAuth/deployment patterns and
+- [image-generator](https://github.com/kitepon-rgb/image-generator) and [IP-MCP](https://github.com/kitepon-rgb/IP-MCP) provide MCP/OAuth/deployment patterns and
   source-boundary lessons.
 
 ## Repository Layout

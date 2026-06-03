@@ -44,7 +44,7 @@ Verified against the local `codex` CLI on 2026-05-05:
 Observed response shape:
 
 ```json
-{"id":1,"result":{"userAgent":"codex_vscode/0.128.0-alpha.1 (Ubuntu 26.4.0; x86_64) xterm-256color (codex-sidecar; 0.0.0)","codexHome":"/home/kite/.codex","platformFamily":"unix","platformOs":"linux"}}
+{"id":1,"result":{"userAgent":"codex_vscode/0.128.0-alpha.1 (Ubuntu 26.4.0; x86_64) xterm-256color (codex-sidecar; 0.0.0)","codexHome":"/path/to/home/.codex","platformFamily":"unix","platformOs":"linux"}}
 {"method":"remoteControl/status/changed","params":{"status":"disabled","environmentId":null}}
 ```
 
@@ -65,7 +65,7 @@ active-tree editing.
 Verified local read-only smoke:
 
 ```bash
-node packages/cli/dist/index.js explore --project /home/kite/projects/codex-sidecar 'Reply exactly: OK'
+node packages/cli/dist/index.js explore --project /path/to/codex-sidecar 'Reply exactly: OK'
 ```
 
 This returned `status: "ok"`, `workflow: "explore"`, and `summary: "OK"` via a

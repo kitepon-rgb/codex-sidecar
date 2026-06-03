@@ -1,15 +1,18 @@
 # codex-sidecar
 
-<p align="center">
-  <img src=".github/og.svg" alt="codex-sidecar の概要" width="100%">
-</p>
-
+[![npm version](https://img.shields.io/npm/v/codex-sidecar-cli.svg?color=cb3837&logo=npm&label=codex-sidecar-cli)](https://www.npmjs.com/package/codex-sidecar-cli)
+[![npm version](https://img.shields.io/npm/v/codex-sidecar-mcp.svg?color=cb3837&logo=npm&label=codex-sidecar-mcp)](https://www.npmjs.com/package/codex-sidecar-mcp)
 [![CI](https://github.com/kitepon-rgb/codex-sidecar/actions/workflows/ci.yml/badge.svg)](https://github.com/kitepon-rgb/codex-sidecar/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![license](https://img.shields.io/npm/l/codex-sidecar-cli.svg?color=blue)](LICENSE)
+[![node](https://img.shields.io/node/v/codex-sidecar-cli.svg?color=339933&logo=node.js&logoColor=white)](https://nodejs.org)
+[![GitHub release](https://img.shields.io/github/v/release/kitepon-rgb/codex-sidecar?color=24292e&logo=github)](https://github.com/kitepon-rgb/codex-sidecar/releases)
 
-> Codex を安全な sidecar として呼び出し、レビュー、調査、リスク確認、小さな修正を active working tree から切り離して実行する。
+[English](README.md) · **日本語**
 
-[English README](README.md) | [Usage](docs/USAGE.md) | [Architecture](docs/ARCHITECTURE.md) | [Protocol](docs/PROTOCOL.md)
+> **Codex を安全な隔離 sidecar として呼び出し、チャットの会話ログではなく機械可読な答えを受け取る。**
+> `codex-sidecar` は、人間・Claude Code・MCP client・hook から Codex にコードレビュー、調査、リスク確認、限定的な修正を依頼でき、active working tree に一切触れずに 1 回ごとに構造化された `SidecarResult` JSON を返します。
+
+[Usage](docs/USAGE.md) · [Architecture](docs/ARCHITECTURE.md) · [Protocol](docs/PROTOCOL.md)
 
 `codex-sidecar` は、Claude Code や MCP client、hook、その他の自動化から Codex を呼ぶための共通実行レイヤーです。Codex を主役に置き換えるのではなく、別視点のレビュー、調査、設計への反対意見、限定的な修正能力を安全な境界つきで差し込みます。
 
@@ -76,7 +79,26 @@ codex-sidecar work \
 | `auditor` | `codex_auditor` | primary tool-use auditor 判定 | なし | `pass`, `missingTools` |
 | `work` | `codex_work` | 小さな実装作業 | 隔離 worktree のみ | `changedFiles`, `tests`, `worktreePath` |
 
-すべての workflow は `SidecarResult` JSON を返します。下流ツールは prose を読むのではなく、構造化 field を利用できます。
+すべての workflow は `SidecarResult` JSON を返します。下流ツールは prose を読むのではなく、構造化 field を利用できます。`codex_review` の呼び出しはおおむね次のような結果を返します:
+
+```json
+{
+  "status": "ok",
+  "workflow": "review",
+  "summary": "No blocking regressions found.",
+  "confidence": {
+    "level": "medium",
+    "rationale": "The review inspected the changed files but did not run tests."
+  },
+  "recommendedNextAction": "Run the relevant package tests before merging.",
+  "fileReferences": [
+    { "path": "packages/core/src/requests.ts", "line": 42, "label": "request execution boundary" }
+  ],
+  "rawEventLogRef": "/path/to/project/.codex-sidecar/logs/app-server/..."
+}
+```
+
+workflow 固有 field がこの共通 field の上に乗ります — `review` は `findings` / `missingTests` / `residualRisks`、`work` は `changedFiles` / `tests` / `worktreePath` などを追加します。完全な contract は [docs/USAGE.md](docs/USAGE.md#structured-result-contract) を参照してください。
 
 ## 何が嬉しいか
 
