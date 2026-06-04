@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { once } from "node:events";
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -469,7 +469,11 @@ export function createIsolatedCodexHome(baseEnv: NodeJS.ProcessEnv = process.env
   const targetHome = mkdtempSync(join(tmpdir(), "codex-sidecar-home-"));
   chmodSync(targetHome, 0o700);
 
-  copyIfExists(join(sourceHome, "auth.json"), join(targetHome, "auth.json"));
+  const sourceAuth = join(sourceHome, "auth.json");
+  const targetAuth = join(targetHome, "auth.json");
+  copyIfExists(sourceAuth, targetAuth);
+  // Snapshot the copied auth so cleanup can tell whether the App Server rotated it.
+  const initialAuth = existsSync(targetAuth) ? readFileSync(targetAuth, "utf8") : undefined;
   copyIfExists(join(sourceHome, "installation_id"), join(targetHome, "installation_id"));
   writeFileSync(
     join(targetHome, "config.toml"),
@@ -483,8 +487,33 @@ export function createIsolatedCodexHome(baseEnv: NodeJS.ProcessEnv = process.env
       ...baseEnv,
       CODEX_HOME: targetHome,
     },
-    cleanup: () => rmSync(targetHome, { recursive: true, force: true }),
+    cleanup: () => {
+      // ChatGPT-account tokens rotate on refresh: the App Server may rewrite
+      // auth.json inside the isolated home during the run. If we only deleted the
+      // temp home, that rotated refresh token would be lost and the canonical
+      // auth.json would keep an already-used refresh token -> next run fails with
+      // "refresh_token_reused" 401. Persist the rotated auth back to the source.
+      persistRotatedAuth(sourceAuth, targetAuth, initialAuth);
+      rmSync(targetHome, { recursive: true, force: true });
+    },
   };
+}
+
+function persistRotatedAuth(sourceAuth: string, targetAuth: string, initialAuth: string | undefined): void {
+  try {
+    if (!existsSync(targetAuth)) return;
+    const finalAuth = readFileSync(targetAuth, "utf8");
+    if (!finalAuth || finalAuth === initialAuth) return;
+    // Atomic replace so a partial write is never observed as the canonical auth.json.
+    const tmp = `${sourceAuth}.codex-sidecar.tmp`;
+    writeFileSync(tmp, finalAuth, { mode: 0o600 });
+    renameSync(tmp, sourceAuth);
+  } catch (error) {
+    // Best-effort recovery: a failed write-back is not fatal (the next run still
+    // has the prior token, recoverable via `codex login`). Surface, don't swallow.
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`[codex-sidecar] failed to persist rotated auth back to ${sourceAuth}: ${message}\n`);
+  }
 }
 
 function copyIfExists(from: string, to: string): void {

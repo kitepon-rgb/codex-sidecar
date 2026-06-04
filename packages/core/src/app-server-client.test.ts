@@ -149,6 +149,39 @@ test("createIsolatedCodexHome carries auth but drops MCP config", () => {
   }
 });
 
+test("createIsolatedCodexHome persists a rotated auth.json back to the source on cleanup", () => {
+  const source = mkTempDir("codex-source-");
+  try {
+    writeFileSync(join(source, "auth.json"), "{\"refresh\":\"R0\"}", "utf8");
+
+    const isolated = createIsolatedCodexHome({ CODEX_HOME: source });
+    // Simulate the App Server rotating the refresh token inside the isolated home.
+    writeFileSync(join(isolated.path, "auth.json"), "{\"refresh\":\"R1\"}", "utf8");
+    isolated.cleanup();
+
+    // The rotated token must survive in the canonical home (no refresh_token_reused).
+    assert.equal(readFileSync(join(source, "auth.json"), "utf8"), "{\"refresh\":\"R1\"}");
+    assert.equal(existsSync(isolated.path), false);
+  } finally {
+    rmSync(source, { recursive: true, force: true });
+  }
+});
+
+test("createIsolatedCodexHome leaves the source auth untouched when nothing rotated", () => {
+  const source = mkTempDir("codex-source-");
+  try {
+    writeFileSync(join(source, "auth.json"), "{\"refresh\":\"R0\"}", "utf8");
+
+    const isolated = createIsolatedCodexHome({ CODEX_HOME: source });
+    isolated.cleanup(); // no rotation happened
+
+    assert.equal(readFileSync(join(source, "auth.json"), "utf8"), "{\"refresh\":\"R0\"}");
+    assert.equal(existsSync(`${join(source, "auth.json")}.codex-sidecar.tmp`), false);
+  } finally {
+    rmSync(source, { recursive: true, force: true });
+  }
+});
+
 test("buildThreadStartDraft uses strict sidecar defaults", () => {
   assert.deepEqual(buildThreadStartDraft(sampleRequest), {
     method: "thread/start",
