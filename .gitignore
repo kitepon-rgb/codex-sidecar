@@ -1,5 +1,6 @@
 node_modules/
 dist/
+coverage/
 *.tsbuildinfo
 .DS_Store
 .codegraph/
@@ -8,3 +9,8 @@ dist/
 .env.*
 !.env.example
 .vscode/
+.claude/settings.json
+.obsidian/
+.venv/
+*.key
+*.pem

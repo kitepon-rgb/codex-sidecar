@@ -278,8 +278,12 @@ tools without requiring them:
 
 ```text
 codex-sidecar/
+├─ rag/
+│  └─ INDEX.md
 ├─ docs/
+│  ├─ 00_OVERVIEW.md
 │  ├─ README.md
+│  ├─ adr/
 │  ├─ TODO.md
 │  ├─ CODEX_MODEL_POLICY_TODO.md
 │  ├─ ARCHITECTURE.md
@@ -331,6 +335,7 @@ corepack pnpm build
 ## Related Docs
 
 - [AGENTS.md](AGENTS.md): working instructions for Codex and future agents.
+- [docs/00_OVERVIEW.md](docs/00_OVERVIEW.md): canonical docs entrypoint.
 - [docs/README.md](docs/README.md): docs index and archive map.
 - [docs/USAGE.md](docs/USAGE.md): CLI, MCP handler, worktree, raw log, and structured result examples.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.

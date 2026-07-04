@@ -39,6 +39,10 @@ node packages/cli/dist/index.js diagnostics --project /Users/kite/Developer/code
 node packages/cli/dist/index.js explore --project /Users/kite/Developer/codex-sidecar 'Reply exactly: OK'
 ```
 
+## Local Claude Settings
+
+Generate `.claude/settings.json` locally with the dotagents `fewer-permission-prompts` skill for this repository. Keep the generated allowlist terminal-local; it is intentionally ignored and must not be committed.
+
 ## Architecture
 
 Two layers, three packages, strict one-way dependency:
@@ -137,6 +141,7 @@ App Server runs write one JSONL per turn under `<projectRoot>/.codex-sidecar/log
 ## Key docs
 
 - [AGENTS.md](AGENTS.md): engineering rules, ecosystem context, project purpose
+- [docs/00_OVERVIEW.md](docs/00_OVERVIEW.md): canonical docs entrypoint
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): layering, package boundaries, safety model
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): App Server protocol notes and stable sidecar contracts
 - [docs/USAGE.md](docs/USAGE.md): CLI / MCP examples, worktree behavior, structured result shapes
