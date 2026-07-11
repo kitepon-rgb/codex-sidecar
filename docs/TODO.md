@@ -25,6 +25,7 @@ changes.
 | P2 | Add ecosystem adapters and fixture snapshots | Done | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
 | P0 | Add explicit Codex model policy for sidecar presets | Done | [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md) |
 | P0 | Fix npm symlinked `codex-sidecar-mcp` bin startup | Done | 0.3.1 |
+| P0 | Degrade schema-drifted structured reports to `status: "partial"` (salvage completed `codex_work` worktrees) instead of hard-failing | Done | [STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](STRUCTURED_OUTPUT_TOLERANCE_PLAN.md) |
 
 ## Local CodeGraph Setup
 

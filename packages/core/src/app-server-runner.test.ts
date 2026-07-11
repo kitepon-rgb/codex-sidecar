@@ -120,6 +120,60 @@ test("runReadOnlyAppServerRequest normalizes review-specific structured fields",
   await rm(eventLogDir, { recursive: true, force: true });
 });
 
+test("runReadOnlyAppServerRequest returns status=partial when the work report drifts from the schema", async () => {
+  const eventLogDir = await makeTempLogDir();
+  const workRequest: SidecarRequest = { ...request, workflow: "work", prompt: "Implement the change." };
+  const client = new FakeAppServerClient([
+    {
+      kind: "notification",
+      method: "item/agentMessage/delta",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        itemId: "item-1",
+        delta: JSON.stringify({
+          summary: "Implemented; verification partly blocked.",
+          confidence: { level: "medium" },
+          recommendedNextAction: "Review the worktree diff.",
+          openQuestions: [],
+          fileReferences: [],
+          sourceBoundaries: [],
+          tests: [{ command: "node --test", status: "failed", summary: "EPERM" }],
+          risks: [
+            {
+              severity: "blocker",
+              title: "Verification blocked",
+              detail: "Sandbox denied writes.",
+              affectedFiles: ["spike/session-end-logger.mjs"],
+              confidence: "high",
+              basis: "Observed EPERM on all three invocations.",
+            },
+          ],
+        }),
+      },
+    },
+    {
+      kind: "notification",
+      method: "turn/completed",
+      params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed", error: null } },
+    },
+  ]);
+
+  const result = await runReadOnlyAppServerRequest(workRequest, { client, eventLogDir, allowWorkWorkflow: true });
+
+  assert.equal(result.status, "partial");
+  assert.equal(result.error?.code, "PROTOCOL_ERROR");
+  assert.match(result.error?.message ?? "", /partially invalid/);
+  // Raw report preserved for salvage; typed workflow fields omitted (no fabrication).
+  assert.equal((result.unvalidatedReport as { risks?: unknown[] }).risks?.length, 1);
+  assert.equal(result.risks, undefined);
+  // Lossless coercions disclosed even on a degraded run.
+  assert.ok((result.normalizationNotes ?? []).some((note) => note.includes("affectedFiles")));
+  assert.ok(result.rawEventLogRef?.startsWith(eventLogDir));
+
+  await rm(eventLogDir, { recursive: true, force: true });
+});
+
 test("runReadOnlyAppServerRequest returns the raw payload for the generate workflow", async () => {
   const eventLogDir = await makeTempLogDir();
   const generateRequest: SidecarRequest = {

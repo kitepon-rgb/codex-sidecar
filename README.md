@@ -96,8 +96,12 @@ inspect the diff before applying anything.
 | `work` | `codex_work` | Implement a small scoped change | Isolated worktree only | `changedFiles`, `tests`, `worktreePath` |
 
 Every workflow returns one `SidecarResult` JSON object. Downstream tools should
-consume the structured fields instead of scraping prose. A `codex_review` call
-returns something like:
+consume the structured fields instead of scraping prose. `status` is `ok`,
+`failed`, `refused`, `dry-run`, or `partial` — the last meaning the turn completed
+but its report drifted from the schema, so the raw report is preserved in
+`unvalidatedReport` and any lossless coercions are disclosed in
+`normalizationNotes` (see [docs/USAGE.md](docs/USAGE.md#degraded-report-status-partial)).
+A `codex_review` call returns something like:
 
 ```json
 {

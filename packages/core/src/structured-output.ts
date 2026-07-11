@@ -32,6 +32,27 @@ interface StructuredOutput {
   failureModes?: string[];
 }
 
+/**
+ * Outcome of parsing an assistant report. Distinguishes a fully-valid report
+ * ("ok") from one whose core (summary/confidence/recommendedNextAction) is intact
+ * but whose workflow-specific fields drifted from the schema ("partial"). A hard
+ * failure — non-JSON, non-object root, or a missing/empty core string — is thrown
+ * as `PROTOCOL_ERROR` and never produced here.
+ */
+export interface StructuredParseResult {
+  status: "ok" | "partial";
+  /** Typed report. On "partial", only the common fields are meaningful; the
+   *  workflow-specific typed fields are omitted to avoid leaking defaulted values.
+   *  Read `raw` for the model's own workflow fields on a "partial" result. */
+  output: StructuredOutput;
+  /** The raw parsed JSON object exactly as the assistant returned it. */
+  raw: Record<string, unknown>;
+  /** Lossless coercions applied (see SidecarResult.normalizationNotes). */
+  normalizationNotes: string[];
+  /** Soft validation errors. Empty iff status === "ok". */
+  validationErrors: string[];
+}
+
 const CONFIDENCE_LEVELS = new Set(["high", "medium", "low", "unknown"]);
 const SEVERITIES = new Set<Severity>(["critical", "high", "medium", "low"]);
 const BASES = new Set<EvidenceBasis>(["observed", "inferred", "hypothetical"]);
@@ -75,7 +96,7 @@ function contextSection(request: SidecarRequest): string {
   return `- context: ${JSON.stringify(request.context)}`;
 }
 
-export function parseStructuredSidecarOutput(request: SidecarRequest, assistantText: string): StructuredOutput {
+export function parseStructuredSidecarOutput(request: SidecarRequest, assistantText: string): StructuredParseResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(assistantText);
@@ -84,29 +105,42 @@ export function parseStructuredSidecarOutput(request: SidecarRequest, assistantT
     throw new Error(`PROTOCOL_ERROR: assistant output was not valid JSON: ${detail}`);
   }
 
-  const errors: string[] = [];
-  const output = assertRecord(parsed, "root", errors);
+  if (!isRecord(parsed)) {
+    throw new Error("PROTOCOL_ERROR: assistant structured output invalid: root must be an object");
+  }
+  const output = parsed;
 
-  const summary = requireString(output, "summary", errors);
-  const confidence = parseConfidence(output.confidence, "confidence", errors);
-  const recommendedNextAction = requireString(output, "recommendedNextAction", errors);
+  // Hard core: without a summary and a recommended next action the payload is not
+  // a report at all. A failure here is a hard PROTOCOL_ERROR — never degraded.
+  const hardErrors: string[] = [];
+  const summary = requireString(output, "summary", hardErrors);
+  const recommendedNextAction = requireString(output, "recommendedNextAction", hardErrors);
+  if (hardErrors.length > 0) {
+    throw new Error(`PROTOCOL_ERROR: assistant structured output invalid: ${hardErrors.join("; ")}`);
+  }
+
+  // Soft layer: everything else. Errors here degrade the run to "partial" rather
+  // than discarding the model's report. `notes` records lossless coercions.
+  const errors: string[] = [];
+  const notes: string[] = [];
+  const confidence = parseConfidence(output.confidence, "confidence", errors, notes);
   const structured: StructuredOutput = {
     summary,
     confidence,
     recommendedNextAction,
     openQuestions: parseStringArray(output.openQuestions, "openQuestions", errors, true),
-    fileReferences: parseFileReferences(output.fileReferences, "fileReferences", errors, true),
+    fileReferences: parseFileReferences(output.fileReferences, "fileReferences", errors, notes, true),
     sourceBoundaries: parseSourceBoundaries(output.sourceBoundaries, "sourceBoundaries", errors, true),
   };
 
   switch (request.workflow) {
     case "review":
-      structured.findings = parseFindings(output.findings, "findings", errors, true);
+      structured.findings = parseFindings(output.findings, "findings", errors, notes, true);
       structured.missingTests = parseStringArray(output.missingTests, "missingTests", errors, true);
       structured.residualRisks = parseStringArray(output.residualRisks, "residualRisks", errors, true);
       break;
     case "risk-check":
-      structured.risks = parseRisks(output.risks, "risks", errors, true);
+      structured.risks = parseRisks(output.risks, "risks", errors, notes, true);
       break;
     case "auditor":
       structured.pass = parseBoolean(output.pass, "pass", errors);
@@ -122,18 +156,65 @@ export function parseStructuredSidecarOutput(request: SidecarRequest, assistantT
       break;
     case "work":
       structured.tests = parseTests(output.tests, "tests", errors, true);
-      structured.risks = parseRisks(output.risks, "risks", errors, true);
+      structured.risks = parseRisks(output.risks, "risks", errors, notes, true);
       break;
     case "generate":
       // generate bypasses SidecarResult parsing; handled by buildGenerateResult.
       break;
   }
 
-  if (errors.length > 0) {
-    throw new Error(`PROTOCOL_ERROR: assistant structured output invalid: ${errors.join("; ")}`);
-  }
+  return {
+    status: errors.length > 0 ? "partial" : "ok",
+    output: structured,
+    raw: output,
+    normalizationNotes: notes,
+    validationErrors: errors,
+  };
+}
 
-  return structured;
+/**
+ * Build the SidecarResult for a "partial" parse: the assistant report parsed as
+ * JSON with a valid core, but workflow-specific validation failed. Exposes the
+ * raw report verbatim and the exact violations. Never invents typed workflow
+ * fields (findings/risks/tests/pass are intentionally omitted so no fabricated
+ * default — e.g. basis="inferred" — is presented as the model's assessment).
+ */
+export function buildDegradedResult(
+  request: SidecarRequest,
+  parseResult: StructuredParseResult,
+  base: Pick<SidecarResult, "normalizedRequest" | "modelPolicy" | "rawEventLogRef">,
+): SidecarResult {
+  const { output, raw, normalizationNotes, validationErrors } = parseResult;
+  return {
+    status: "partial",
+    workflow: request.workflow,
+    summary: output.summary,
+    confidence: output.confidence,
+    recommendedNextAction: output.recommendedNextAction,
+    openQuestions: output.openQuestions,
+    fileReferences: output.fileReferences,
+    sourceBoundaries: [
+      ...(output.sourceBoundaries ?? []),
+      {
+        label: "Codex App Server",
+        source: "local codex app-server stdio",
+        trust: "local",
+      },
+    ],
+    normalizationNotes: normalizationNotes.length > 0 ? normalizationNotes : undefined,
+    unvalidatedReport: raw,
+    normalizedRequest: base.normalizedRequest,
+    modelPolicy: base.modelPolicy,
+    rawEventLogRef: base.rawEventLogRef,
+    error: {
+      code: "PROTOCOL_ERROR",
+      message: `assistant structured output partially invalid: ${validationErrors.join("; ")}`,
+      data: {
+        validationErrors,
+        rawEventLogRef: base.rawEventLogRef,
+      },
+    },
+  };
 }
 
 export function mergeStructuredOutput(
@@ -176,14 +257,16 @@ function workflowSchema(workflow: SidecarRequest["workflow"]): string {
     case "review":
       return [
         "Review workflow fields:",
-        "- findings: Array<{ severity, title, detail, evidence?: string, file?: string, line?: number, confidence, basis }>",
+        '- findings: Array<{ severity: "critical"|"high"|"medium"|"low", title: string, detail: string, evidence?: string, file?: string, line?: number, confidence: { level: "high"|"medium"|"low"|"unknown", rationale?: string }, basis: "observed"|"inferred"|"hypothetical" }>',
+        "  (confidence is an object, not a bare string; basis is one of those three tokens, not a sentence; severity is one of those four tokens)",
         "- missingTests: string[]",
         "- residualRisks: string[]",
       ].join("\n");
     case "risk-check":
       return [
         "Risk-check workflow fields:",
-        "- risks: Array<{ severity, title, detail, affectedFiles, suggestedVerification?: string, confidence, basis }>",
+        '- risks: Array<{ severity: "critical"|"high"|"medium"|"low", title: string, detail: string, affectedFiles: Array<{ path: string, line?: number }>, suggestedVerification?: string, confidence: { level: "high"|"medium"|"low"|"unknown", rationale?: string }, basis: "observed"|"inferred"|"hypothetical" }>',
+        "  (affectedFiles is an array of objects with a path field, not bare path strings; confidence is an object; basis and severity are single enum tokens)",
       ].join("\n");
     case "auditor":
       return [
@@ -205,8 +288,9 @@ function workflowSchema(workflow: SidecarRequest["workflow"]): string {
     case "work":
       return [
         "Work workflow fields:",
-        "- tests: Array<{ command: string, status: \"passed\" | \"failed\" | \"not-run\", summary?: string }>",
-        "- risks: Array<{ severity, title, detail, affectedFiles, suggestedVerification?: string, confidence, basis }>",
+        '- tests: Array<{ command: string, status: "passed" | "failed" | "not-run", summary?: string }>',
+        '- risks: Array<{ severity: "critical"|"high"|"medium"|"low", title: string, detail: string, affectedFiles: Array<{ path: string, line?: number }>, suggestedVerification?: string, confidence: { level: "high"|"medium"|"low"|"unknown", rationale?: string }, basis: "observed"|"inferred"|"hypothetical" }>',
+        "  (affectedFiles is an array of objects with a path field, not bare path strings; confidence is an object; basis and severity are single enum tokens)",
       ].join("\n");
     case "generate":
       // generate uses a separate prompt (buildGenerationPrompt); never reaches here.
@@ -233,7 +317,14 @@ function requireString(record: Record<string, unknown>, key: string, errors: str
   return value;
 }
 
-function parseConfidence(value: unknown, path: string, errors: string[]): Confidence {
+function parseConfidence(value: unknown, path: string, errors: string[], notes: string[]): Confidence {
+  // Lossless coercion: a bare valid-level string ("high") carries exactly the
+  // information the object form would. Accept it and disclose the coercion.
+  if (typeof value === "string" && CONFIDENCE_LEVELS.has(value)) {
+    notes.push(`${path}: coerced string "${value}" to { level: "${value}" }`);
+    return { level: value as Confidence["level"] };
+  }
+
   const record = assertRecord(value, path, errors);
   if (typeof record.level !== "string" || !CONFIDENCE_LEVELS.has(record.level)) {
     errors.push(`${path}.level must be high, medium, low, or unknown`);
@@ -289,13 +380,29 @@ function parseMissingTools(value: unknown, path: string, errors: string[], requi
   });
 }
 
-function parseFileReferences(value: unknown, path: string, errors: string[], required = false): FileReference[] | undefined {
+function parseFileReferences(
+  value: unknown,
+  path: string,
+  errors: string[],
+  notes: string[],
+  required = false,
+): FileReference[] | undefined {
   const items = parseArray(value, path, errors, required);
   if (!items) {
     return undefined;
   }
 
   return items.map((item, index) => {
+    // Lossless coercion: a bare path string is exactly the object's `path`.
+    if (typeof item === "string") {
+      if (item.trim().length === 0) {
+        errors.push(`${path}[${index}] must be an object`);
+        return { path: "" };
+      }
+      notes.push(`${path}[${index}]: coerced string "${item}" to { path: "${item}" }`);
+      return { path: item };
+    }
+
     const record = assertRecord(item, `${path}[${index}]`, errors);
     const reference: FileReference = { path: requireString(record, "path", errors, `${path}[${index}].path`) };
     if ("line" in record) {
@@ -341,7 +448,13 @@ function parseSourceBoundaries(value: unknown, path: string, errors: string[], r
   });
 }
 
-function parseFindings(value: unknown, path: string, errors: string[], required = false): SidecarFinding[] | undefined {
+function parseFindings(
+  value: unknown,
+  path: string,
+  errors: string[],
+  notes: string[],
+  required = false,
+): SidecarFinding[] | undefined {
   const items = parseArray(value, path, errors, required);
   if (!items) {
     return undefined;
@@ -353,7 +466,7 @@ function parseFindings(value: unknown, path: string, errors: string[], required 
       severity: parseSeverity(record.severity, `${path}[${index}].severity`, errors),
       title: requireString(record, "title", errors, `${path}[${index}].title`),
       detail: requireString(record, "detail", errors, `${path}[${index}].detail`),
-      confidence: parseConfidence(record.confidence, `${path}[${index}].confidence`, errors),
+      confidence: parseConfidence(record.confidence, `${path}[${index}].confidence`, errors, notes),
       basis: parseBasis(record.basis, `${path}[${index}].basis`, errors),
     };
 
@@ -383,7 +496,13 @@ function parseFindings(value: unknown, path: string, errors: string[], required 
   });
 }
 
-function parseRisks(value: unknown, path: string, errors: string[], required = false): SidecarRisk[] | undefined {
+function parseRisks(
+  value: unknown,
+  path: string,
+  errors: string[],
+  notes: string[],
+  required = false,
+): SidecarRisk[] | undefined {
   const items = parseArray(value, path, errors, required);
   if (!items) {
     return undefined;
@@ -395,8 +514,9 @@ function parseRisks(value: unknown, path: string, errors: string[], required = f
       severity: parseSeverity(record.severity, `${path}[${index}].severity`, errors),
       title: requireString(record, "title", errors, `${path}[${index}].title`),
       detail: requireString(record, "detail", errors, `${path}[${index}].detail`),
-      affectedFiles: parseFileReferences(record.affectedFiles, `${path}[${index}].affectedFiles`, errors, true) ?? [],
-      confidence: parseConfidence(record.confidence, `${path}[${index}].confidence`, errors),
+      affectedFiles:
+        parseFileReferences(record.affectedFiles, `${path}[${index}].affectedFiles`, errors, notes, true) ?? [],
+      confidence: parseConfidence(record.confidence, `${path}[${index}].confidence`, errors, notes),
       basis: parseBasis(record.basis, `${path}[${index}].basis`, errors),
     };
 

@@ -84,7 +84,7 @@ codex-sidecar work \
 | `generate` | `codex_generate` | freeform タスク向けに任意の構造化 JSON を生成 | なし | `generated`（生の JSON object/array） |
 | `work` | `codex_work` | 小さな実装作業 | 隔離 worktree のみ | `changedFiles`, `tests`, `worktreePath` |
 
-すべての workflow は `SidecarResult` JSON を返します。下流ツールは prose を読むのではなく、構造化 field を利用できます。`codex_review` の呼び出しはおおむね次のような結果を返します:
+すべての workflow は `SidecarResult` JSON を返します。下流ツールは prose を読むのではなく、構造化 field を利用できます。`status` は `ok` / `failed` / `refused` / `dry-run` / `partial` のいずれかで、`partial` は「ターンは完走したが報告が schema から逸脱した」状態を表します。この場合、生報告は `unvalidatedReport` に保存され、無損失の正規化は `normalizationNotes` に開示されます（詳細は [docs/USAGE.md](docs/USAGE.md#degraded-report-status-partial)）。`codex_review` の呼び出しはおおむね次のような結果を返します:
 
 ```json
 {

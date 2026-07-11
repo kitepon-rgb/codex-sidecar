@@ -4,7 +4,7 @@ import { collectAgentMessageText, findTurnCompletion } from "./app-server-events
 import { createAppServerEventLogger, type AppServerEventLogger } from "./app-server-logs.js";
 import { buildGenerateResult } from "./generate.js";
 import { errorResult, modelPolicyInfo, toSidecarError } from "./results.js";
-import { mergeStructuredOutput, parseStructuredSidecarOutput } from "./structured-output.js";
+import { buildDegradedResult, mergeStructuredOutput, parseStructuredSidecarOutput } from "./structured-output.js";
 import type { SidecarRequest, SidecarResult } from "./types.js";
 
 export interface AppServerSessionClient {
@@ -150,15 +150,31 @@ export async function runReadOnlyAppServerRequest(
       return buildGenerateResult(request, summary, logger.ref);
     }
 
-    const structuredOutput = parseStructuredSidecarOutput(request, summary);
+    const parseResult = parseStructuredSidecarOutput(request, summary);
 
-    return mergeStructuredOutput(request, structuredOutput, {
+    if (parseResult.status === "partial") {
+      // JSON parsed with a valid core, but workflow fields drifted from the
+      // schema. Surface the raw report and the exact violations instead of
+      // discarding a completed turn. No prose fallback: JSON.parse failures and
+      // a missing core still throw PROTOCOL_ERROR upstream in parseStructuredSidecarOutput.
+      return buildDegradedResult(request, parseResult, {
+        normalizedRequest: request,
+        modelPolicy: modelPolicyInfo(request),
+        rawEventLogRef: logger.ref,
+      });
+    }
+
+    const merged = mergeStructuredOutput(request, parseResult.output, {
       status: "ok",
       workflow: request.workflow,
       normalizedRequest: request,
       modelPolicy: modelPolicyInfo(request),
       rawEventLogRef: logger.ref,
     });
+    if (parseResult.normalizationNotes.length > 0) {
+      merged.normalizationNotes = parseResult.normalizationNotes;
+    }
+    return merged;
   } catch (error) {
     logger?.write({
       category: "diagnostic",

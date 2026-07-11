@@ -647,6 +647,28 @@ Workflow-specific fields:
 - `work`: `changedFiles`, `tests`, `risks`, `worktreePath`,
   `worktreePreserved`.
 
+### Degraded report (`status: "partial"`)
+
+`status` is `ok`, `failed`, `refused`, `dry-run`, or `partial`. A `partial` run is
+returned when the assistant turn completes and its report parses as JSON with a
+valid core (`summary`, `recommendedNextAction`) but a workflow-specific field
+drifts from the schema. Instead of discarding a completed turn, the sidecar:
+
+- preserves the raw report verbatim in `unvalidatedReport`;
+- lists the exact violations in `error` (still `PROTOCOL_ERROR`);
+- discloses any lossless coercion in `normalizationNotes` — currently a bare
+  confidence level string (`"high"` → `{ "level": "high" }`) and string
+  `affectedFiles`/`fileReferences` elements (`"a.ts"` → `{ "path": "a.ts" }`);
+- omits the typed workflow fields (`findings`/`risks`/`tests`/`pass`) so no
+  fabricated default is presented — read `unvalidatedReport` for them;
+- for `work`, still attaches `changedFiles`/`worktreePath`/`worktreePreserved`, so
+  a completed worktree is never thrown away because its report drifted.
+
+Un-coercible drift is never guessed: a synonym `severity` or a free-text `basis`
+is surfaced as a violation, not invented. A non-JSON turn or a missing core stays
+a hard `PROTOCOL_ERROR` (`status: "failed"`) — there is no prose fallback. See
+[STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](STRUCTURED_OUTPUT_TOLERANCE_PLAN.md).
+
 Finding example:
 
 ```json

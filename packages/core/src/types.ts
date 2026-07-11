@@ -121,7 +121,16 @@ export interface SidecarError {
 }
 
 export interface SidecarResult {
-  status: "ok" | "failed" | "refused" | "dry-run";
+  /**
+   * "partial" = the assistant turn completed and its report parsed as JSON with
+   * a valid core (summary/confidence/recommendedNextAction), but one or more
+   * workflow-specific fields failed schema validation. The run is not a failure:
+   * artifacts (e.g. a work worktree) are preserved and the raw report is exposed
+   * verbatim in `unvalidatedReport`. Callers must read `error` and
+   * `unvalidatedReport` rather than the typed workflow fields, which are omitted
+   * on "partial" to avoid presenting fabricated defaults.
+   */
+  status: "ok" | "partial" | "failed" | "refused" | "dry-run";
   workflow: SidecarWorkflow;
   summary: string;
   confidence: Confidence;
@@ -146,6 +155,21 @@ export interface SidecarResult {
   failureModes?: string[];
   /** generate workflow only: the raw JSON value (object or array) Codex returned. */
   generated?: unknown;
+  /**
+   * Lossless coercions applied while parsing the assistant report (e.g. a bare
+   * confidence level string promoted to `{ level }`, or a string `affectedFiles`
+   * element promoted to `{ path }`). Present whenever any normalization ran, on
+   * both "ok" and "partial" results. Empty/undefined means the report matched the
+   * schema verbatim.
+   */
+  normalizationNotes?: string[];
+  /**
+   * Only on `status: "partial"`. The raw parsed JSON object the assistant
+   * returned, verbatim. Exposed so callers can recover the model's own report
+   * (including fields the sidecar refused to coerce, like a free-text `basis` or
+   * a synonym `severity`) without the sidecar inventing typed values.
+   */
+  unvalidatedReport?: unknown;
   rawEventLogRef?: string;
   normalizedRequest?: SidecarRequest;
   modelPolicy?: ModelPolicyInfo;

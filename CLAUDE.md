@@ -67,9 +67,9 @@ Dependency direction is enforced:
 
 ## Result contract (do not break)
 
-Every workflow — `review`, `explore`, `opinion`, `risk-check`, `auditor`, `work` — returns a single `SidecarResult` JSON object. `structured-output.ts` parses the Codex assistant turn as one JSON object; if it is not valid JSON or workflow-specific required fields are missing, the run fails with `PROTOCOL_ERROR`. **There is no prose fallback. Do not add one.**
+Every workflow — `review`, `explore`, `opinion`, `risk-check`, `auditor`, `work` — returns a single `SidecarResult` JSON object. `structured-output.ts` parses the Codex assistant turn as one JSON object with a **hard core** (valid JSON, object root, non-empty `summary` + `recommendedNextAction`) and a **soft layer** (everything else). A hard-core failure is `PROTOCOL_ERROR` / `status: "failed"` — **there is no prose fallback; do not add one.** A soft-layer failure (a drifted workflow-specific field) degrades to `status: "partial"`: the raw report is exposed verbatim in `unvalidatedReport`, violations are listed in `error`, lossless coercions are disclosed in `normalizationNotes`, and `work` still attaches `changedFiles`/`worktreePath`. Typed workflow fields are omitted on `partial` so no fabricated default (e.g. `basis="inferred"`) is presented as the model's. Only two lossless coercions run — bare confidence level string → `{ level }`, string `affectedFiles`/`fileReferences` element → `{ path }`; synonym `severity` and free-text `basis` are surfaced as violations, never guessed. See `docs/STRUCTURED_OUTPUT_TOLERANCE_PLAN.md`.
 
-Workflow-specific required fields (see `docs/PROTOCOL.md` §Structured App Server Output):
+Workflow-specific fields — a failure here now degrades to `partial`, not `failed` (see `docs/PROTOCOL.md` §Structured App Server Output):
 
 - `review`: `findings`, `missingTests`, `residualRisks`
 - `risk-check`: `risks`

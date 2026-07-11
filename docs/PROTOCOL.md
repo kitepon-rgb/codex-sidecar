@@ -106,21 +106,43 @@ Server changes:
 ## Structured App Server Output
 
 App Server turns are prompted to return exactly one JSON object. The adapter
-parses that object directly into `SidecarResult` fields. If the assistant output
-is not valid JSON, or if required workflow-specific fields are missing or
-malformed, the run fails with `PROTOCOL_ERROR`; callers must not parse prose as
-a fallback.
+parses that object directly into `SidecarResult` fields. Validation is split into
+a hard core and a soft layer:
 
-Common required fields:
+- **Hard core** — the assistant output must be valid JSON with an object root and
+  a non-empty `summary` and `recommendedNextAction`. A failure here is
+  `PROTOCOL_ERROR` (`status: "failed"`); callers must not parse prose as a
+  fallback. This is the load-bearing "no prose fallback" boundary and must not be
+  softened.
+- **Soft layer** — everything else, including all workflow-specific fields. When
+  the hard core is intact but a soft field fails validation, the run returns
+  `status: "partial"` instead of failing. The typed workflow fields are omitted
+  (so no fabricated default is presented), the raw report is exposed verbatim in
+  `unvalidatedReport`, the exact violations are listed in `error` (still
+  `PROTOCOL_ERROR`), and any lossless coercions are disclosed in
+  `normalizationNotes`. For `work`, `changedFiles`/`worktreePath` are still
+  attached, so a completed worktree is never discarded because its report drifted.
 
-- `summary`
+Lossless coercions applied during the soft layer (each disclosed in
+`normalizationNotes`):
+
+- a bare confidence level string (`"high"`) → `{ level: "high" }`, at any position;
+- a string element in `affectedFiles`/`fileReferences` (`"a.ts"`) → `{ path: "a.ts" }`.
+
+Values that would require *guessing* a classification are never coerced —
+a synonym `severity` (e.g. `"blocker"`) and a free-text `basis` are surfaced as
+violations, not invented, to preserve the explicit-source-boundary invariant.
+
+Common fields (hard core in **bold**):
+
+- **`summary`**
 - `confidence`
-- `recommendedNextAction`
+- **`recommendedNextAction`**
 - `openQuestions`
 - `fileReferences`
 - `sourceBoundaries`
 
-Workflow-specific required fields:
+Workflow-specific fields (soft — a failure degrades to `partial`, not `failed`):
 
 - `review`: `findings`, `missingTests`, `residualRisks`
 - `risk-check`: `risks`
