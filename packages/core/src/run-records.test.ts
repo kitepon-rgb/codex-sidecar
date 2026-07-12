@@ -50,11 +50,23 @@ test("record reader rejects symlink, modes, malformed envelopes, and digest corr
   await assert.rejects(() => readRecord(dir, "claim.json"), { code: "RUN_STORE_CORRUPT" });
 });
 
-test("record API rejects unknown kinds, unsupported names, and filename-kind mismatch", async (t) => {
+test("record API rejects malformed typed records, unsupported names, and filename-kind mismatch", async (t) => {
   const dir = await directory(t);
-  await assert.rejects(() => publishRecord(dir, "ready.json", { kind: "ready", generation: 1, token }), { code: "RUN_INVALID_INPUT" });
+  await assert.rejects(() => publishRecord(dir, "ready.json", { kind: "ready", generation: 1, token }));
   await assert.rejects(() => publishRecord(dir, "claim.json", { kind: "spawn", generation: 1, token, pid: 0, pgid: 0 }));
   await assert.rejects(() => publishRecord(dir, "heartbeat.json", claim()));
+});
+
+test("spawn reader rejects digest-valid invalid process fields and unknown keys", async (t) => {
+  const dir = await directory(t);
+  const writeMalformedSpawn = async (body: Record<string, unknown>) => {
+    await writeFile(join(dir, "spawn.json"), JSON.stringify({ ...body, digest: sha256(stableJson(body)) }), { mode: 0o600 });
+    await assert.rejects(() => readRecord(dir, "spawn.json"), { code: "RUN_STORE_CORRUPT" });
+  };
+  const base = { version: 1, kind: "spawn", generation: 1, token, pid: 2, pgid: 2, processIdentity: { pid: 2, startIdentity: "process" }, createdAt: "2026-07-12T00:00:00.000Z" };
+  await writeMalformedSpawn({ ...base, pid: 0 });
+  await writeMalformedSpawn({ ...base, processIdentity: { pid: 0, startIdentity: "" } });
+  await writeMalformedSpawn({ ...base, unexpected: true });
 });
 
 test("attempt directories require safe identities and stay private", async (t) => {

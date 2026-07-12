@@ -3,6 +3,7 @@ import { link, lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { sha256, stableJson, RunStoreError } from "./run-foundation.js";
+import type { ProcessIdentity } from "./process-identity.js";
 import type { LaunchClaim } from "./run-types.js";
 
 const DIRECTORY_MODE = 0o700;
@@ -11,7 +12,7 @@ const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
 export interface RecordEnvelope {
   version: 1;
-  kind: "claim" | "heartbeat";
+  kind: "claim" | "heartbeat" | "spawn" | "boot" | "ready" | "failure";
   generation: number;
   token: string;
   digest: string;
@@ -22,6 +23,31 @@ export interface Heartbeat extends RecordEnvelope {
   kind: "heartbeat";
   owner: { pid: number; startIdentity: string };
   updatedAt: string;
+}
+
+export interface SpawnRecord extends RecordEnvelope {
+  kind: "spawn";
+  pid: number;
+  pgid: number;
+  processIdentity: ProcessIdentity;
+  createdAt: string;
+}
+
+export interface AttemptMarker extends RecordEnvelope {
+  kind: "boot" | "ready";
+  pid: number;
+  pgid: number;
+  processIdentity: ProcessIdentity;
+  createdAt: string;
+}
+
+export interface FailureRecord extends RecordEnvelope {
+  kind: "failure";
+  pid: number;
+  pgid: number;
+  processIdentity: ProcessIdentity;
+  reason: "early-exit" | "ready-timeout" | "ready-invalid" | "spawn-publish-failed";
+  createdAt: string;
 }
 
 export async function ensureRecordDirectory(path: string): Promise<void> {
@@ -142,6 +168,11 @@ function assertRecordSchema(value: unknown, expectedKind?: RecordEnvelope["kind"
   if (expectedKeys && !sameKeys(record, expectedKeys)) throw new Error(`invalid ${record.kind} record keys`);
   if (expectedKind && record.kind !== expectedKind) throw new Error(`record kind must be ${expectedKind}`);
   if ("owner" in record && !isProcessIdentity(record.owner)) throw new Error("invalid record owner");
+  if ("processIdentity" in record && !isProcessIdentity(record.processIdentity)) throw new Error("invalid record process identity");
+  if (record.kind === "spawn" || record.kind === "boot" || record.kind === "ready" || record.kind === "failure") {
+    if (!isPositiveInteger(record.pid) || !isPositiveInteger(record.pgid)) throw new Error("invalid child process identifiers");
+  }
+  if (record.kind === "failure" && record.reason !== "early-exit" && record.reason !== "ready-timeout" && record.reason !== "ready-invalid" && record.reason !== "spawn-publish-failed") throw new Error("invalid failure reason");
   for (const timestamp of ["createdAt", "updatedAt"]) {
     if (timestamp in record && !isIsoTimestamp(record[timestamp])) throw new Error(`invalid ${timestamp}`);
   }
@@ -152,6 +183,10 @@ function schemaKeys(kind: string): readonly string[] {
   switch (kind) {
     case "claim": return [...base, "owner", "createdAt"];
     case "heartbeat": return [...base, "owner", "updatedAt"];
+    case "spawn":
+    case "boot":
+    case "ready": return [...base, "pid", "pgid", "processIdentity", "createdAt"];
+    case "failure": return [...base, "pid", "pgid", "processIdentity", "reason", "createdAt"];
     default: throw new Error(`unsupported record kind: ${kind}`);
   }
 }
@@ -166,6 +201,10 @@ function recordKindForName(name: string): RecordEnvelope["kind"] {
   switch (name) {
     case "claim.json": return "claim";
     case "heartbeat.json": return "heartbeat";
+    case "spawn.json": return "spawn";
+    case "boot.json": return "boot";
+    case "ready.json": return "ready";
+    case "failure.json": return "failure";
     default: throw new RunStoreError("RUN_INVALID_INPUT", `unsupported record name: ${name}`);
   }
 }
@@ -194,6 +233,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isProcessIdentity(value: unknown): boolean {
   return isObject(value) && sameKeys(value, ["pid", "startIdentity"]) && Number.isInteger(value.pid) && (value.pid as number) > 0 && typeof value.startIdentity === "string" && value.startIdentity.length > 0;
+}
+
+function isPositiveInteger(value: unknown): boolean {
+  return Number.isInteger(value) && (value as number) > 0;
 }
 
 function isIsoTimestamp(value: unknown): boolean {
