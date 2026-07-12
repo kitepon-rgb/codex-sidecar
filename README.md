@@ -301,7 +301,6 @@ codex-sidecar/
 │  ├─ README.md
 │  ├─ adr/
 │  ├─ TODO.md
-│  ├─ CODEX_MODEL_POLICY_TODO.md
 │  ├─ ARCHITECTURE.md
 │  ├─ PROTOCOL.md
 │  ├─ USAGE.md
@@ -357,7 +356,7 @@ corepack pnpm build
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
 - [docs/TODO.md](docs/TODO.md): durable task list and linked GitHub issues.
-- [docs/CODEX_MODEL_POLICY_TODO.md](docs/CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
+- [docs/archive/CODEX_MODEL_POLICY_TODO.md](docs/archive/CODEX_MODEL_POLICY_TODO.md): archived completed Codex model policy plan.
 
 ## License
 

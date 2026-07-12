@@ -342,4 +342,4 @@ The protocol adapter should fail explicitly.
 - [README.md](README.md): docs index and archive map.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [TODO.md](TODO.md): durable task list and linked GitHub issues.
-- [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
+- [archive/CODEX_MODEL_POLICY_TODO.md](archive/CODEX_MODEL_POLICY_TODO.md): archived completed Codex model policy plan.

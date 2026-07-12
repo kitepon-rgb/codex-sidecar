@@ -268,5 +268,5 @@ Avoid:
 - [../AGENTS.md](../AGENTS.md): working instructions for Codex and future agents.
 - [README.md](README.md): docs index and archive map.
 - [TODO.md](TODO.md): durable task list and linked GitHub issues.
-- [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
+- [archive/CODEX_MODEL_POLICY_TODO.md](archive/CODEX_MODEL_POLICY_TODO.md): archived completed Codex model policy plan.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.

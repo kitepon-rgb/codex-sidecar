@@ -130,6 +130,6 @@ MCP の HTTP transport は `CODEX_SIDECAR_MCP_TRANSPORT=http` で有効化し、
 - [README.md](README.md): project overview and repository layout.
 - [docs/README.md](docs/README.md): docs index and archive map.
 - [docs/TODO.md](docs/TODO.md): durable task list, GitHub issues, and external coordination.
-- [docs/CODEX_MODEL_POLICY_TODO.md](docs/CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
+- [docs/archive/CODEX_MODEL_POLICY_TODO.md](docs/archive/CODEX_MODEL_POLICY_TODO.md): archived completed Codex model policy plan.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.

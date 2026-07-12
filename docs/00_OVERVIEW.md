@@ -13,7 +13,6 @@ work inside isolated git worktrees.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and dependency direction.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server boundary, stable contracts, structured output, and transport notes.
 - [TODO.md](TODO.md): durable project task list and external coordination.
-- [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): model-policy implementation plan and remaining upstream follow-up.
 - [adr/](adr/): architecture decision records. No ADR entries are filed yet.
 
 ## Layout Standard Status

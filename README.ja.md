@@ -210,7 +210,7 @@ MCP クライアント設定例:
 - [docs/README.md](docs/README.md): docs index と archive map。
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): package 境界、layering、安全 model、result contract。
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): Codex App Server との protocol 境界。
-- [docs/CODEX_MODEL_POLICY_TODO.md](docs/CODEX_MODEL_POLICY_TODO.md): Codex model policy の計画と TODO。
+- [docs/archive/CODEX_MODEL_POLICY_TODO.md](docs/archive/CODEX_MODEL_POLICY_TODO.md): 完了済み Codex model policy 計画。
 
 ## 開発
 

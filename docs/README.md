@@ -9,7 +9,6 @@ This directory keeps the current operating docs for `codex-sidecar`.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
 - [TODO.md](TODO.md): durable task list and linked GitHub issues.
-- [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
 
 ## Decisions
 
@@ -23,3 +22,4 @@ Archived docs are useful context, but current behavior should be checked against
 the docs above and the implementation before making changes.
 
 - [archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md): completed durable detached execution and result recovery plan for long-running `codex_work` calls.
+- [archive/CODEX_MODEL_POLICY_TODO.md](archive/CODEX_MODEL_POLICY_TODO.md): completed explicit Codex model policy plan and Caveat rollout record.

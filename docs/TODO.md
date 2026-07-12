@@ -11,9 +11,10 @@ restart are implemented and verified. The completed plan is archived at
 [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md).
 No repository-local P0 is currently marked Planned.
 
-Explicit Codex model selection is implemented in `codex-sidecar`; remaining
-Caveat-side preset and hook follow-up stays in
-[CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md).
+Explicit Codex model selection is implemented in `codex-sidecar`; the Caveat
+advisory preset, hook routing, diagnostics, and real-model smoke were completed
+in Caveat v0.14.7. The completed plan is archived at
+[CODEX_MODEL_POLICY_TODO.md](archive/CODEX_MODEL_POLICY_TODO.md).
 
 The MCP npm-bin symlink startup bug is fixed in the 0.3.1 line. Keep the
 symlinked stdio-server regression test in place for future package and release
@@ -29,7 +30,7 @@ changes.
 | P1 | Wire MCP tools to real sidecar execution | Done | [#4](https://github.com/kitepon-rgb/codex-sidecar/issues/4) |
 | P0 | Implement worktree-backed `codex_work` execution | Done | [#5](https://github.com/kitepon-rgb/codex-sidecar/issues/5) |
 | P2 | Add ecosystem adapters and fixture snapshots | Done | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
-| P0 | Add explicit Codex model policy for sidecar presets | Done | [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md) |
+| P0 | Add explicit Codex model policy for sidecar presets | Done | [CODEX_MODEL_POLICY_TODO.md](archive/CODEX_MODEL_POLICY_TODO.md) |
 | P0 | Fix npm symlinked `codex-sidecar-mcp` bin startup | Done | 0.3.1 |
 | P0 | Degrade schema-drifted structured reports to `status: "partial"` (salvage completed `codex_work` worktrees) instead of hard-failing | Done | [STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](STRUCTURED_OUTPUT_TOLERANCE_PLAN.md) |
 | P0 | Make long-running `codex_work` survive MCP client restart and expose durable result retrieval | Done | [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md) |
@@ -80,7 +81,7 @@ repository.
 - [../README.md](../README.md): project overview and repository layout.
 - [../AGENTS.md](../AGENTS.md): working instructions for Codex and future agents.
 - [README.md](README.md): docs index and archive map.
-- [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
+- [archive/CODEX_MODEL_POLICY_TODO.md](archive/CODEX_MODEL_POLICY_TODO.md): archived completed Codex model policy plan.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
 - [archive/PLAN.md](archive/PLAN.md): archived original phase roadmap.

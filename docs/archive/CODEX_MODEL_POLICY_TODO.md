@@ -3,6 +3,8 @@
 This document is the implementation plan and task list for explicit model
 selection in `codex-sidecar` and its consuming repositories, especially Caveat.
 
+Status: Complete — sidecar and Caveat tasks verified; archived 2026-07-12.
+
 ## Goal
 
 `codex-sidecar` should stop relying only on the caller's global Codex default
@@ -98,18 +100,18 @@ configuration so callers can tell whether sidecar actually selected a model.
 
 ## Caveat Tasks
 
-- [ ] Add a Caveat-specific `advisory` preset to `.codex-sidecar.yml`.
-- [ ] Set Caveat automatic hook advisory to use `--preset advisory` instead of
+- [x] Add a Caveat-specific `advisory` preset to `.codex-sidecar.yml`.
+- [x] Set Caveat automatic hook advisory to use `--preset advisory` instead of
   sharing the human `explore` preset.
-- [ ] Set Caveat manual presets approximately as:
+- [x] Set Caveat manual presets approximately as:
   - `explore`: `gpt-5.4-mini`, `medium`
   - `review`: `gpt-5.5`, `medium`
   - `opinion`: `gpt-5.5`, `medium`
   - `risk`: `gpt-5.5`, `high`
   - `work`: `gpt-5.5`, `high`
-- [ ] Update `caveat codex-sidecar diagnostics` output expectations if
+- [x] Update `caveat codex-sidecar diagnostics` output expectations if
   normalized request snapshots include model policy.
-- [ ] Add a smoke note that verifies the App Server log reports the intended
+- [x] Add a smoke note that verifies the App Server log reports the intended
   model for the advisory preset.
 
 ## Tests
@@ -157,10 +159,10 @@ Verified on 2026-05-06 with Caveat hook advisory smoke:
 
 ## Related Docs
 
-- [../README.md](../README.md): project overview and repository layout.
-- [../AGENTS.md](../AGENTS.md): working instructions for Codex and future agents.
-- [README.md](README.md): docs index and archive map.
-- [TODO.md](TODO.md): durable task list and linked GitHub issues.
-- [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
-- [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
-- [USAGE.md](USAGE.md): CLI, MCP handler, worktree, raw log, and structured result examples.
+- [../../README.md](../../README.md): project overview and repository layout.
+- [../../AGENTS.md](../../AGENTS.md): working instructions for Codex and future agents.
+- [../README.md](../README.md): docs index and archive map.
+- [../TODO.md](../TODO.md): durable task list and linked GitHub issues.
+- [../ARCHITECTURE.md](../ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
+- [../PROTOCOL.md](../PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
+- [../USAGE.md](../USAGE.md): CLI, MCP handler, worktree, raw log, and structured result examples.

@@ -4,8 +4,8 @@ This is the original phase roadmap for `codex-sidecar`. It is retained as
 historical context. Current behavior and active work are tracked in
 [../README.md](../README.md), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 [../PROTOCOL.md](../PROTOCOL.md), [../USAGE.md](../USAGE.md), and
-[../TODO.md](../TODO.md). Active model-selection work is tracked in
-[../CODEX_MODEL_POLICY_TODO.md](../CODEX_MODEL_POLICY_TODO.md).
+[../TODO.md](../TODO.md). The completed model-selection plan is archived in
+[CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md).
 
 ## Goal
 
@@ -576,6 +576,6 @@ Exit criteria:
 - [../../AGENTS.md](../../AGENTS.md): working instructions for Codex and future agents.
 - [../README.md](../README.md): current docs index.
 - [../TODO.md](../TODO.md): durable task list and linked GitHub issues.
-- [../CODEX_MODEL_POLICY_TODO.md](../CODEX_MODEL_POLICY_TODO.md): explicit Codex model policy plan and task list.
+- [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): archived completed Codex model policy plan.
 - [../ARCHITECTURE.md](../ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
 - [../PROTOCOL.md](../PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.

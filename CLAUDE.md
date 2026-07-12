@@ -146,4 +146,3 @@ App Server runs write one JSONL per turn under `<projectRoot>/.codex-sidecar/log
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): App Server protocol notes and stable sidecar contracts
 - [docs/USAGE.md](docs/USAGE.md): CLI / MCP examples, worktree behavior, structured result shapes
 - [docs/TODO.md](docs/TODO.md): durable task list
-- [docs/CODEX_MODEL_POLICY_TODO.md](docs/CODEX_MODEL_POLICY_TODO.md): explicit model policy plan
