@@ -135,7 +135,7 @@ test("a durable dry-run started over stdio is recovered by same key over HTTP af
 test("a non-dry-run survives stdio server loss before its MCP response is delivered and is recovered over HTTP", async (t) => {
   if (process.platform === "win32") return;
   const root = await mkdtemp(join(tmpdir(), "codex-sidecar-mcp-stdio-close-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const repo = join(root, "repo");
   const home = join(root, "home");
   const cache = join(root, "cache");
