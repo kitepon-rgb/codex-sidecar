@@ -3,7 +3,7 @@ import { link, lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { sha256, stableJson, RunStoreError } from "./run-foundation.js";
-import type { ProcessIdentity } from "./process-identity.js";
+import { currentProcessIdentity, type ProcessIdentity } from "./process-identity.js";
 import type { LaunchClaim } from "./run-types.js";
 import type { SidecarResult } from "./types.js";
 import { withRunTransition } from "./run-transition.js";
@@ -14,7 +14,7 @@ const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
 export interface RecordEnvelope {
   version: 1;
-  kind: "claim" | "heartbeat" | "spawn" | "boot" | "ready" | "failure" | "cancel" | "execution-started" | "quarantine" | "result" | "terminal" | "cleanup";
+  kind: "claim" | "heartbeat" | "worker-heartbeat" | "spawn" | "boot" | "ready" | "failure" | "cancel" | "execution-started" | "quarantine" | "result" | "terminal" | "cleanup";
   generation: number;
   token: string;
   digest: string;
@@ -31,6 +31,14 @@ export interface CleanupRecord extends RecordEnvelope { kind: "cleanup"; state: 
 export interface Heartbeat extends RecordEnvelope {
   kind: "heartbeat";
   owner: { pid: number; startIdentity: string };
+  updatedAt: string;
+}
+
+export interface WorkerHeartbeat extends RecordEnvelope {
+  kind: "worker-heartbeat";
+  pid: number;
+  pgid: number;
+  processIdentity: ProcessIdentity;
   updatedAt: string;
 }
 
@@ -189,6 +197,27 @@ export async function replaceHeartbeat(lockDirectory: string, claim: LaunchClaim
   await readHeartbeat(lockDirectory, current);
 }
 
+/** Replaces the run-level heartbeat only when it is bound to the durable spawned worker. */
+export async function replaceWorkerHeartbeat(runDirectory: string, claim: LaunchClaim, identity: ProcessIdentity): Promise<void> {
+  await assertDirectory(runDirectory);
+  const caller = await currentProcessIdentity();
+  const lockDirectory = join(runDirectory, "launch.lock");
+  const current = await readClaim(lockDirectory);
+  const spawned = await readRecord(lockDirectory, "spawn.json");
+  if (stableJson(caller) !== stableJson(identity) || stableJson(current) !== stableJson(claim) || !spawned || spawned.kind !== "spawn" || spawned.generation !== claim.generation || spawned.token !== claim.token || spawned.pid !== identity.pid || spawned.pgid !== identity.pid || stableJson(spawned.processIdentity) !== stableJson(identity)) {
+    throw new RunStoreError("RUN_STORE_CORRUPT", "worker heartbeat owner mismatch");
+  }
+  const body = { version: 1 as const, kind: "worker-heartbeat" as const, generation: claim.generation, token: claim.token, pid: identity.pid, pgid: identity.pid, processIdentity: identity, updatedAt: new Date().toISOString() };
+  assertRecordSchema(body);
+  const payload = { ...body, digest: sha256(stableJson(body)) };
+  const temporaryPath = join(runDirectory, `.worker-heartbeat-${randomBytes(18).toString("base64url")}`);
+  await writePrivateFile(temporaryPath, `${JSON.stringify(payload)}\n`);
+  try { await rename(temporaryPath, join(runDirectory, "worker-heartbeat.json")); }
+  finally { await rm(temporaryPath, { force: true }); }
+  const written = await readRecord(runDirectory, "worker-heartbeat.json");
+  if (!written || stableJson(written) !== stableJson(payload)) throw new RunStoreError("RUN_STORE_CORRUPT", "worker heartbeat verification failed");
+}
+
 export function assertEnvelope(value: unknown): asserts value is RecordEnvelope {
   assertRecordSchema(value);
 }
@@ -206,7 +235,7 @@ function assertRecordSchema(value: unknown, expectedKind?: RecordEnvelope["kind"
   if (record.kind !== "cancel" && (!Number.isSafeInteger(record.generation) || (record.generation as number) < 1 || typeof record.token !== "string" || !TOKEN.test(record.token))) throw new Error("invalid record generation or token");
   if ("owner" in record && !isProcessIdentity(record.owner)) throw new Error("invalid record owner");
   if ("processIdentity" in record && !isProcessIdentity(record.processIdentity)) throw new Error("invalid record process identity");
-  if (record.kind === "spawn" || record.kind === "boot" || record.kind === "ready" || record.kind === "failure") {
+  if (record.kind === "spawn" || record.kind === "boot" || record.kind === "ready" || record.kind === "failure" || record.kind === "worker-heartbeat") {
     if (!isPositiveInteger(record.pid) || !isPositiveInteger(record.pgid)) throw new Error("invalid child process identifiers");
   }
   if (record.kind === "failure" && record.reason !== "early-exit" && record.reason !== "ready-timeout" && record.reason !== "ready-invalid" && record.reason !== "spawn-publish-failed") throw new Error("invalid failure reason");
@@ -224,6 +253,7 @@ function schemaKeys(kind: string): readonly string[] {
   switch (kind) {
     case "claim": return [...base, "owner", "createdAt"];
     case "heartbeat": return [...base, "owner", "updatedAt"];
+    case "worker-heartbeat": return [...base, "pid", "pgid", "processIdentity", "updatedAt"];
     case "spawn":
     case "boot":
     case "ready": return [...base, "pid", "pgid", "processIdentity", "createdAt"];
@@ -248,6 +278,7 @@ function recordKindForName(name: string): RecordEnvelope["kind"] {
   switch (name) {
     case "claim.json": return "claim";
     case "heartbeat.json": return "heartbeat";
+    case "worker-heartbeat.json": return "worker-heartbeat";
     case "spawn.json": return "spawn";
     case "boot.json": return "boot";
     case "ready.json": return "ready";

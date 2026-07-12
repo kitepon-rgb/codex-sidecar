@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { AppServerClient } from "./app-server-client.js";
+import { matchesProcessIdentity, processStartIdentity } from "./process-identity.js";
 import {
   AppServerProtocolError,
   buildAppServerCommand,
@@ -12,7 +14,6 @@ import {
   buildTurnStartDraft,
   buildStructuredOutputPrompt,
   collectAgentMessageText,
-  createIsolatedCodexHome,
   encodeAppServerMessage,
   findTurnCompletion,
   hasTurnCompleted,
@@ -37,12 +38,6 @@ const sampleRequest: SidecarRequest = {
   context: [],
   dryRun: false,
 };
-
-function mkTempDir(prefix: string): string {
-  const dir = join(tmpdir(), `${prefix}${Math.random().toString(16).slice(2)}`);
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
 
 test("encodeAppServerMessage writes one JSON object per line", () => {
   assert.equal(encodeAppServerMessage({ id: 1, method: "initialize", params: { ok: true } }), '{"id":1,"method":"initialize","params":{"ok":true}}\n');
@@ -115,82 +110,45 @@ test("buildAppServerCommand can use an explicit Codex binary", () => {
   }
 });
 
-test("createIsolatedCodexHome carries auth but drops MCP config", () => {
-  const source = mkTempDir("codex-source-");
-  try {
-    writeFileSync(join(source, "auth.json"), "{\"token\":\"redacted\"}", "utf8");
-    writeFileSync(join(source, "installation_id"), "install-id", "utf8");
-    writeFileSync(
-      join(source, "config.toml"),
-      [
-        'model = "gpt-5.5"',
-        'model_provider = "openai"',
-        'model_reasoning_effort = "high"',
-        "model_context_window = 272000",
-        "model_auto_compact_token_limit = 240000",
-        "[mcp_servers.codegraph]",
-        'command = "codegraph"',
-      ].join("\n"),
-      "utf8",
-    );
-
-    const isolated = createIsolatedCodexHome({ CODEX_HOME: source });
-    try {
-      assert.equal(isolated.env.CODEX_HOME, isolated.path);
-      assert.equal(readFileSync(join(isolated.path, "auth.json"), "utf8"), "{\"token\":\"redacted\"}");
-      assert.equal(readFileSync(join(isolated.path, "installation_id"), "utf8"), "install-id");
-      assert.equal(
-        readFileSync(join(isolated.path, "config.toml"), "utf8"),
-        [
-          'model = "gpt-5.5"',
-          'model_provider = "openai"',
-          'model_reasoning_effort = "high"',
-          "model_context_window = 272000",
-          "model_auto_compact_token_limit = 240000",
-          "",
-        ].join("\n"),
-      );
-    } finally {
-      isolated.cleanup();
-    }
-    assert.equal(existsSync(isolated.path), false);
-  } finally {
-    rmSync(source, { recursive: true, force: true });
-  }
+test("AppServerClient.start refuses to bypass DurableAuthSession", () => {
+  assert.throws(() => AppServerClient.start(), /DurableAuthSession CODEX_HOME/);
 });
 
-test("createIsolatedCodexHome persists a rotated auth.json back to the source on cleanup", () => {
-  const source = mkTempDir("codex-source-");
-  try {
-    writeFileSync(join(source, "auth.json"), "{\"refresh\":\"R0\"}", "utf8");
-
-    const isolated = createIsolatedCodexHome({ CODEX_HOME: source });
-    // Simulate the App Server rotating the refresh token inside the isolated home.
-    writeFileSync(join(isolated.path, "auth.json"), "{\"refresh\":\"R1\"}", "utf8");
-    isolated.cleanup();
-
-    // The rotated token must survive in the canonical home (no refresh_token_reused).
-    assert.equal(readFileSync(join(source, "auth.json"), "utf8"), "{\"refresh\":\"R1\"}");
-    assert.equal(existsSync(isolated.path), false);
-  } finally {
-    rmSync(source, { recursive: true, force: true });
-  }
+test("AppServerClient.close escalates TERM to KILL and confirms the owned child disappeared", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "app-server-close-")); t.after(() => rm(root, { recursive: true, force: true }));
+  const pidPath = join(root, "pid");
+  const client = AppServerClient.start({
+    command: process.execPath,
+    args: ["--input-type=module", "-e", `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(pidPath)},String(process.pid)); process.on('SIGTERM',()=>{}); setInterval(()=>{},1000)`],
+    env: { ...process.env, CODEX_HOME: root },
+  });
+  const pid = await waitForPid(pidPath); const identity = { pid, startIdentity: await processStartIdentity(pid) };
+  await client.close();
+  assert.equal(await matchesProcessIdentity(identity), false);
 });
 
-test("createIsolatedCodexHome leaves the source auth untouched when nothing rotated", () => {
-  const source = mkTempDir("codex-source-");
-  try {
-    writeFileSync(join(source, "auth.json"), "{\"refresh\":\"R0\"}", "utf8");
-
-    const isolated = createIsolatedCodexHome({ CODEX_HOME: source });
-    isolated.cleanup(); // no rotation happened
-
-    assert.equal(readFileSync(join(source, "auth.json"), "utf8"), "{\"refresh\":\"R0\"}");
-    assert.equal(existsSync(`${join(source, "auth.json")}.codex-sidecar.tmp`), false);
-  } finally {
-    rmSync(source, { recursive: true, force: true });
-  }
+test("AppServerClient.close fails closed when an already-exited owner still has a stdio-holding descendant", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "app-server-close-descendant-")); t.after(() => rm(root, { recursive: true, force: true }));
+  const pidPath = join(root, "descendant.pid"); let descendantPid: number | undefined;
+  t.after(() => { if (descendantPid) { try { process.kill(descendantPid, "SIGKILL"); } catch {} } });
+  const client = AppServerClient.start({
+    command: process.execPath,
+    args: ["--input-type=module", "-e", `import {spawn} from 'node:child_process'; import {writeFileSync} from 'node:fs'; const descendant=spawn(process.execPath,['--input-type=module','-e',\"process.on('SIGTERM',()=>{});setInterval(()=>{},1000)\"],{stdio:'inherit'}); writeFileSync(${JSON.stringify(pidPath)},String(descendant.pid)); setTimeout(()=>process.exit(0),50)`],
+    env: { ...process.env, CODEX_HOME: root },
+  });
+  descendantPid = await waitForPid(pidPath); await new Promise((resolve) => setTimeout(resolve, 120));
+  await assert.rejects(() => client.close(), /did not exit and close after SIGKILL/);
 });
+
+async function waitForPid(path: string): Promise<number> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    try { return Number.parseInt(await readFile(path, "utf8"), 10); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("child pid file timed out");
+}
 
 test("buildThreadStartDraft uses strict sidecar defaults", () => {
   assert.deepEqual(buildThreadStartDraft(sampleRequest), {

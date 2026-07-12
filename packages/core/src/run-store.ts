@@ -99,6 +99,11 @@ async function readClaim(runDirectory: string): Promise<LaunchClaim> {
   return readLaunchClaim(join(runDirectory, "launch.lock"));
 }
 
+/** @internal Worker-only durable run read; callers must already have crossed the permit boundary. */
+export async function readStoredRunDirectory(runDirectory: string): Promise<Pick<StoredRun, "runDirectory" | "manifest" | "claim">> {
+  return { runDirectory, manifest: await readManifest(runDirectory), claim: await readClaim(runDirectory) };
+}
+
 function canonicalRawInput(rawInput: RunStartInput["rawInput"], callerWorktreePath: string, baseRef: string): Record<string, unknown> {
   const callerInput = jsonValue(rawInput, "raw input");
   if (!isPlainObject(callerInput)) throw new RunStoreError("RUN_INVALID_INPUT", "raw input must be an object");

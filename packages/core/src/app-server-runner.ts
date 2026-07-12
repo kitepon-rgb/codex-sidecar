@@ -1,11 +1,12 @@
 import type { AppServerThreadStartResponse, AppServerTurnStartResponse } from "./app-server.js";
-import { AppServerClient, type AppServerInitializeResult, type AppServerWireNotification } from "./app-server-client.js";
+import { AppServerClient, type AppServerClientOptions, type AppServerInitializeResult, type AppServerWireNotification } from "./app-server-client.js";
 import { collectAgentMessageText, findTurnCompletion } from "./app-server-events.js";
 import { createAppServerEventLogger, type AppServerEventLogger } from "./app-server-logs.js";
 import { buildGenerateResult } from "./generate.js";
 import { errorResult, modelPolicyInfo, toSidecarError } from "./results.js";
 import { buildDegradedResult, mergeStructuredOutput, parseStructuredSidecarOutput } from "./structured-output.js";
 import type { SidecarRequest, SidecarResult } from "./types.js";
+import { createDurableAuthSession, type DurableAuthSession } from "./durable-auth-session.js";
 
 export interface AppServerSessionClient {
   readonly notifications: AppServerWireNotification[];
@@ -27,6 +28,10 @@ export interface AppServerRunOptions {
   version?: string;
   turnTimeoutMs?: number;
   allowWorkWorkflow?: boolean;
+  authCacheRoot?: string;
+  authBaseEnv?: NodeJS.ProcessEnv;
+  /** @internal deterministic process seam; durable auth still wraps this factory. */
+  clientFactory?: (options: AppServerClientOptions) => AppServerSessionClient;
 }
 
 export async function runReadOnlyAppServerRequest(
@@ -43,6 +48,7 @@ export async function runReadOnlyAppServerRequest(
   let logger: AppServerEventLogger | undefined;
   let client: AppServerSessionClient | undefined;
   let ownsClient = false;
+  let authSession: DurableAuthSession | undefined;
 
   try {
     logger = await createAppServerEventLogger(request, { logDir: options.eventLogDir });
@@ -62,11 +68,16 @@ export async function runReadOnlyAppServerRequest(
       },
     });
 
+    if (options.client === undefined) {
+      authSession = await createDurableAuthSession({ ownerKind: "sync-session", cacheRoot: options.authCacheRoot, baseEnv: options.authBaseEnv });
+      await authSession.markAppServerStarted();
+    }
     client =
       options.client ??
-      AppServerClient.start({
+      (options.clientFactory ?? AppServerClient.start)({
         model: request.model,
         modelReasoningEffort: request.modelReasoningEffort,
+        env: authSession?.env,
         onLogEntry: (entry) => logger?.write(entry),
       });
     ownsClient = options.client === undefined;
@@ -200,11 +211,19 @@ export async function runReadOnlyAppServerRequest(
       writeRetainedClientDiagnostics(logger, client);
     }
 
+    let cleanupError: unknown;
     if (ownsClient && client) {
-      await client.close?.();
+      try { await client.close?.(); } catch (error) { cleanupError = error; }
     }
-
+    if (!cleanupError && authSession) {
+      try { await authSession.closeClean(); } catch (error) { cleanupError = error; }
+    }
     await logger?.close();
+    if (cleanupError) {
+      const result = errorResult(request, toSidecarError(cleanupError));
+      if (logger) result.rawEventLogRef = logger.ref;
+      return result;
+    }
   }
 }
 

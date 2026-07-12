@@ -1,7 +1,8 @@
 export * from "./types.js";
 export * from "./app-server.js";
 export * from "./auth-lease.js";
-export * from "./app-server-client.js";
+export { AppServerProtocolError, AppServerRequestError, encodeAppServerMessage, parseAppServerLine } from "./app-server-client.js";
+export type { AppServerRequestId, AppServerWireRequest, AppServerWireNotification, AppServerWireResponse, AppServerWireError, AppServerWireMessage, AppServerInitializeResult } from "./app-server-client.js";
 export * from "./app-server-events.js";
 export * from "./app-server-logs.js";
 export * from "./app-server-runner.js";

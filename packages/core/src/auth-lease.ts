@@ -8,6 +8,7 @@ const DIR_MODE = 0o700;
 const FILE_MODE = 0o600;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const MARKERS = ["app-server-started", "app-server-exited", "auth-written-back", "clean-shutdown"] as const;
+const AUXILIARY_JOURNAL_RECORDS = ["lease-acquired.json", "snapshot.json", "run-local-rotation.json"] as const;
 type MarkerKind = typeof MARKERS[number];
 type RecoveryStrategy = "release-never-started" | "release-clean";
 
@@ -271,7 +272,7 @@ async function readCurrentStrict(context: { leaseDirectory: string; canonicalAut
 
 async function assertRecoveryJournal(lease: AuthLease, strategy: RecoveryStrategy): Promise<void> {
   const names = await readdir(lease.owner.journalPath);
-  for (const name of names) if (name.endsWith(".json") && ![...MARKERS.map((kind) => `${kind}.json`), "operator-recovery.json"].includes(name)) throw coded("RUN_AUTH_UNCERTAIN", "unknown auth lease journal record");
+  for (const name of names) if (name.endsWith(".json") && ![...MARKERS.map((kind) => `${kind}.json`), ...AUXILIARY_JOURNAL_RECORDS, "operator-recovery.json"].includes(name)) throw coded("RUN_AUTH_UNCERTAIN", "unknown auth lease journal record");
   const marker = async (kind: MarkerKind): Promise<MarkerRecord | undefined> => {
     try { const value = await readPrivateJson(join(lease.owner.journalPath, `${kind}.json`)); assertMarker(value, kind); return value; }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw uncertain("invalid auth lease journal", error); }

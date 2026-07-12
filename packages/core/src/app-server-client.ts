@@ -1,8 +1,4 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { once } from "node:events";
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
 import {
   buildAppServerCommand,
   buildInitializeDraft,
@@ -67,18 +63,11 @@ export interface AppServerClientOptions {
   modelReasoningEffort?: ModelReasoningEffort;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
-  isolateCodexHome?: boolean;
   requestTimeoutMs?: number;
   onNotification?: (message: AppServerWireNotification) => void;
   onServerRequest?: (message: AppServerWireRequest) => void;
   onProtocolError?: (error: Error) => void;
   onLogEntry?: (entry: Omit<AppServerLogEntry, "timestamp">) => void;
-}
-
-export interface IsolatedCodexHome {
-  path: string;
-  env: NodeJS.ProcessEnv;
-  cleanup: () => void;
 }
 
 interface PendingRequest<T = unknown> {
@@ -120,6 +109,7 @@ export class AppServerClient {
   private stdoutBuffer = "";
   private stderrBuffer = "";
   private closed = false;
+  private processClosed = false;
   private readonly pending = new Map<AppServerRequestId, PendingRequest>();
   private readonly notificationWaiters = new Set<PendingNotification>();
   private readonly requestTimeoutMs: number;
@@ -127,21 +117,17 @@ export class AppServerClient {
   private readonly onServerRequest?: (message: AppServerWireRequest) => void;
   private readonly onProtocolError?: (error: Error) => void;
   private readonly onLogEntry?: (entry: Omit<AppServerLogEntry, "timestamp">) => void;
-  private readonly cleanup?: () => void;
-  private cleanupCalled = false;
 
   private constructor(
     private readonly child: ChildProcessWithoutNullStreams,
     options: AppServerClientOptions,
     startup: { command: string; args: string[] },
-    cleanup?: () => void,
   ) {
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.onNotification = options.onNotification;
     this.onServerRequest = options.onServerRequest;
     this.onProtocolError = options.onProtocolError;
     this.onLogEntry = options.onLogEntry;
-    this.cleanup = cleanup;
 
     this.log({
       category: "lifecycle",
@@ -186,20 +172,20 @@ export class AppServerClient {
       this.rejectAll(error);
       this.rejectNotificationWaiters(error);
     });
+    child.once("close", () => { this.processClosed = true; });
   }
 
   static start(options: AppServerClientOptions = {}): AppServerClient {
+    if (options.env?.CODEX_HOME === undefined) {
+      throw new AppServerProtocolError("AppServerClient.start requires a DurableAuthSession CODEX_HOME");
+    }
     const defaultCommand = buildAppServerCommand({
       model: options.model,
       modelReasoningEffort: options.modelReasoningEffort,
     });
     const command = options.command ?? defaultCommand.command;
     const args = options.args ?? defaultCommand.args;
-    const isolated =
-      options.env === undefined && options.isolateCodexHome !== false
-        ? createIsolatedCodexHome()
-        : undefined;
-    const env = options.env ?? isolated?.env;
+    const env = options.env;
     const effectiveOptions = { ...options, env };
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -207,7 +193,7 @@ export class AppServerClient {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    return new AppServerClient(child, effectiveOptions, { command, args }, isolated?.cleanup);
+    return new AppServerClient(child, effectiveOptions, { command, args });
   }
 
   get stderr(): string {
@@ -312,8 +298,7 @@ export class AppServerClient {
   }
 
   async close(): Promise<void> {
-    if (this.closed) {
-      this.cleanupOnce();
+    if (this.closed && this.processClosed) {
       return;
     }
 
@@ -325,20 +310,13 @@ export class AppServerClient {
     });
     this.rejectAll(new AppServerProtocolError("App Server client closed before completing pending requests"));
     this.rejectNotificationWaiters(new AppServerProtocolError("App Server client closed before receiving pending notifications"));
+    const stopped = this.waitForExitAndClose();
     this.child.stdin.end();
-
-    if (!this.child.killed) {
-      this.child.kill("SIGTERM");
+    if (this.child.exitCode === null && this.child.signalCode === null) this.child.kill("SIGTERM");
+    if (!await settles(stopped, 1_000)) {
+      if (this.child.exitCode === null && this.child.signalCode === null) this.child.kill("SIGKILL");
+      if (!await settles(stopped, 1_000)) throw new AppServerProtocolError("App Server did not exit and close after SIGKILL");
     }
-
-    await Promise.race([
-      once(this.child, "exit"),
-      new Promise((resolve) => {
-        setTimeout(resolve, 1_000);
-      }),
-    ]);
-
-    this.cleanupOnce();
   }
 
   private handleStdout(chunk: string): void {
@@ -379,10 +357,15 @@ export class AppServerClient {
     }
   }
 
-  private cleanupOnce(): void {
-    if (this.cleanupCalled) return;
-    this.cleanupCalled = true;
-    this.cleanup?.();
+  private waitForExitAndClose(): Promise<void> {
+    if ((this.child.exitCode !== null || this.child.signalCode !== null) && this.processClosed) return Promise.resolve();
+    return new Promise((resolve) => {
+      let exited = this.child.exitCode !== null || this.child.signalCode !== null;
+      let closed = this.processClosed;
+      const finish = () => { if (exited && closed) resolve(); };
+      this.child.once("exit", () => { exited = true; finish(); });
+      this.child.once("close", () => { closed = true; finish(); });
+    });
   }
 
   private handleMessage(message: AppServerWireMessage): void {
@@ -464,81 +447,12 @@ export class AppServerClient {
   }
 }
 
-export function createIsolatedCodexHome(baseEnv: NodeJS.ProcessEnv = process.env): IsolatedCodexHome {
-  const sourceHome = baseEnv.CODEX_HOME ?? join(homedir(), ".codex");
-  const targetHome = mkdtempSync(join(tmpdir(), "codex-sidecar-home-"));
-  chmodSync(targetHome, 0o700);
-
-  const sourceAuth = join(sourceHome, "auth.json");
-  const targetAuth = join(targetHome, "auth.json");
-  copyIfExists(sourceAuth, targetAuth);
-  // Snapshot the copied auth so cleanup can tell whether the App Server rotated it.
-  const initialAuth = existsSync(targetAuth) ? readFileSync(targetAuth, "utf8") : undefined;
-  copyIfExists(join(sourceHome, "installation_id"), join(targetHome, "installation_id"));
-  writeFileSync(
-    join(targetHome, "config.toml"),
-    minimalCodexConfig(readOptional(join(sourceHome, "config.toml"))),
-    "utf8",
-  );
-
-  return {
-    path: targetHome,
-    env: {
-      ...baseEnv,
-      CODEX_HOME: targetHome,
-    },
-    cleanup: () => {
-      // ChatGPT-account tokens rotate on refresh: the App Server may rewrite
-      // auth.json inside the isolated home during the run. If we only deleted the
-      // temp home, that rotated refresh token would be lost and the canonical
-      // auth.json would keep an already-used refresh token -> next run fails with
-      // "refresh_token_reused" 401. Persist the rotated auth back to the source.
-      persistRotatedAuth(sourceAuth, targetAuth, initialAuth);
-      rmSync(targetHome, { recursive: true, force: true });
-    },
-  };
-}
-
-function persistRotatedAuth(sourceAuth: string, targetAuth: string, initialAuth: string | undefined): void {
-  try {
-    if (!existsSync(targetAuth)) return;
-    const finalAuth = readFileSync(targetAuth, "utf8");
-    if (!finalAuth || finalAuth === initialAuth) return;
-    // Atomic replace so a partial write is never observed as the canonical auth.json.
-    const tmp = `${sourceAuth}.codex-sidecar.tmp`;
-    writeFileSync(tmp, finalAuth, { mode: 0o600 });
-    renameSync(tmp, sourceAuth);
-  } catch (error) {
-    // Best-effort recovery: a failed write-back is not fatal (the next run still
-    // has the prior token, recoverable via `codex login`). Surface, don't swallow.
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`[codex-sidecar] failed to persist rotated auth back to ${sourceAuth}: ${message}\n`);
-  }
-}
-
-function copyIfExists(from: string, to: string): void {
-  if (existsSync(from)) copyFileSync(from, to);
-}
-
-function readOptional(path: string): string {
-  return existsSync(path) ? readFileSync(path, "utf8") : "";
-}
-
-function minimalCodexConfig(source: string): string {
-  let inTable = false;
-  const passthrough = source.split(/\r?\n/).filter((line) => {
-    const trimmed = line.trim();
-    if (/^(?:\[\[.*\]\]|\[.*\])(?:\s*#.*)?$/.test(trimmed)) {
-      inTable = true;
-      return false;
-    }
-    return !inTable && /^(?:model|model_provider|model_reasoning_effort|model_context_window|model_auto_compact_token_limit)\s*=/.test(trimmed);
-  });
-  return `${passthrough.join("\n")}${passthrough.length > 0 ? "\n" : ""}`;
-}
-
 export function encodeAppServerMessage(message: Record<string, unknown>): string {
   return `${JSON.stringify(message)}\n`;
+}
+
+function settles(done: Promise<void>, timeoutMs: number): Promise<boolean> {
+  return Promise.race([done.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs))]);
 }
 
 export function parseAppServerLine(line: string): AppServerWireMessage {

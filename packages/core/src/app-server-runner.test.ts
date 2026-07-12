@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { runReadOnlyAppServerRequest, type AppServerSessionClient, type AppServerWireNotification, type SidecarRequest } from "./index.js";
+import { createDurableAuthSession } from "./durable-auth-session.js";
+import type { AppServerClientOptions } from "./app-server-client.js";
 
 const request: SidecarRequest = {
   workflow: "explore",
@@ -339,6 +341,50 @@ test("runReadOnlyAppServerRequest fails write-capable requests before App Server
   assert.equal(result.error?.code, "APP_SERVER_UNIMPLEMENTED");
 });
 
+test("owned read-only App Server calls use and release a durable isolated auth session", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "codex-sidecar-runner-auth-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const home = join(root, "home"); const cache = join(root, "cache"); const logs = join(root, "logs");
+  await mkdir(home, { mode: 0o700 }); await mkdir(cache, { mode: 0o700 }); await mkdir(logs, { mode: 0o700 });
+  await chmod(home, 0o700); await chmod(cache, 0o700);
+  await writeFile(join(home, "auth.json"), '{"refresh":"canonical"}\n', { mode: 0o600 });
+  await writeFile(join(home, "config.toml"), 'model_context_window = 272000\nmodel_auto_compact_token_limit = 240000\n[mcp_servers.forbidden]\ncommand="x"\n', { mode: 0o600 });
+  const assistantJson = JSON.stringify({ summary: "durable", confidence: { level: "high" }, recommendedNextAction: "none", openQuestions: [], fileReferences: [], sourceBoundaries: [] });
+  const client = new FakeAppServerClient([
+    { kind: "notification", method: "item/agentMessage/delta", params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: assistantJson } },
+    { kind: "notification", method: "turn/completed", params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed", error: null } } },
+  ]);
+  let factoryOptions: AppServerClientOptions | undefined;
+  const result = await runReadOnlyAppServerRequest(request, {
+    eventLogDir: logs,
+    authCacheRoot: await realpath(cache),
+    authBaseEnv: { ...process.env, CODEX_HOME: await realpath(home) },
+    clientFactory: (options) => { factoryOptions = options; return client; },
+  });
+  assert.equal(result.status, "ok"); assert.equal(client.closed, true);
+  assert.ok(factoryOptions?.env?.CODEX_HOME); assert.notEqual(factoryOptions?.env?.CODEX_HOME, await realpath(home));
+  const isolatedConfig = await readFile(join(factoryOptions!.env!.CODEX_HOME!, "config.toml"), "utf8");
+  assert.match(isolatedConfig, /model_context_window = 272000/); assert.doesNotMatch(isolatedConfig, /mcp_servers/);
+  const next = await createDurableAuthSession({ baseEnv: { ...process.env, CODEX_HOME: await realpath(home) }, cacheRoot: await realpath(cache), ownerKind: "sync-session", ownerId: "after-runner" });
+  await next.closeClean();
+});
+
+test("unconfirmed App Server close keeps the durable auth lease held", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "codex-sidecar-runner-close-")); t.after(() => rm(root, { recursive: true, force: true }));
+  const home = join(root, "home"); const cache = join(root, "cache"); const logs = join(root, "logs");
+  await mkdir(home, { mode: 0o700 }); await mkdir(cache, { mode: 0o700 }); await mkdir(logs, { mode: 0o700 }); await chmod(home, 0o700); await chmod(cache, 0o700);
+  await writeFile(join(home, "auth.json"), '{"refresh":"canonical"}\n', { mode: 0o600 });
+  const assistantJson = JSON.stringify({ summary: "done", confidence: { level: "high" }, recommendedNextAction: "none", openQuestions: [], fileReferences: [], sourceBoundaries: [] });
+  const client = new FailingCloseClient([
+    { kind: "notification", method: "item/agentMessage/delta", params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: assistantJson } },
+    { kind: "notification", method: "turn/completed", params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed", error: null } } },
+  ]);
+  const baseEnv = { ...process.env, CODEX_HOME: await realpath(home) }; const authCacheRoot = await realpath(cache);
+  const result = await runReadOnlyAppServerRequest(request, { eventLogDir: logs, authCacheRoot, authBaseEnv: baseEnv, clientFactory: () => client });
+  assert.equal(result.status, "failed");
+  await assert.rejects(() => createDurableAuthSession({ baseEnv, cacheRoot: authCacheRoot, ownerKind: "sync-session", ownerId: "must-remain-busy" }), { code: "AUTH_LEASE_BUSY" });
+});
+
 async function makeTempLogDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), "codex-sidecar-app-server-logs-"));
 }
@@ -412,4 +458,8 @@ class FakeAppServerClient implements AppServerSessionClient {
   async close() {
     this.closed = true;
   }
+}
+
+class FailingCloseClient extends FakeAppServerClient {
+  override async close() { throw new Error("App Server close was not confirmed"); }
 }
