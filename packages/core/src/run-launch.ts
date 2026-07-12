@@ -1,11 +1,14 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { closeSync, constants, fchmodSync, openSync } from "node:fs";
+import { lstat, mkdir, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { matchesProcessIdentity, processStartIdentity } from "./process-identity.js";
-import { attemptDirectory, publishRecord, readClaim, readRecord, type AttemptMarker, type SpawnRecord } from "./run-records.js";
-import { stableJson } from "./run-foundation.js";
+import { currentProcessIdentity, matchesProcessIdentity, processStartIdentity } from "./process-identity.js";
+import { attemptDirectory, publishRecord, readClaim, readHeartbeat, readRecord, type AttemptMarker, type SpawnRecord } from "./run-records.js";
+import { sha256, stableJson } from "./run-foundation.js";
 import type { LaunchClaim, StoredRun } from "./run-types.js";
 import type { SidecarRunHandle } from "./types.js";
+import { withRunTransition } from "./run-transition.js";
 
 export interface LaunchOptions {
   timeoutMs?: number;
@@ -15,12 +18,95 @@ export interface LaunchOptions {
   executablePath?: string;
   faultAfterSpawnBeforeRecord?: boolean;
   env?: NodeJS.ProcessEnv;
+  bootGraceMs?: number;
+  faultAfterTombstone?: boolean;
 }
+
+/** Returns the live claim, or atomically fences a pre-spawn dead publisher. */
+export async function acquireOrReclaimLaunchClaim(run: StoredRun, options: Pick<LaunchOptions, "bootGraceMs" | "faultAfterTombstone"> = {}): Promise<StoredRun> {
+  const lock = join(run.runDirectory, "launch.lock");
+  const current = await optionalLaunchClaim(lock);
+  if (current && await matchesProcessIdentity(current.owner)) return { ...run, claim: current };
+  return withRunTransition(run.runDirectory, async () => {
+    const observed = await optionalLaunchClaim(lock);
+    if (observed) {
+      if (await matchesProcessIdentity(observed.owner)) return { ...run, claim: observed };
+      if (await reclaimBlocked(run, observed, options.bootGraceMs ?? 5_000, lock)) throw runError("RUN_ORPHANED", "stale launch claim has durable worker evidence");
+      const tombstone = join(run.runDirectory, `launch.lock.tombstone-${observed.generation}-${observed.token}`);
+      await rename(lock, tombstone);
+      const moved = await readClaim(tombstone);
+      if (stableJson(moved) !== stableJson(observed)) throw runError("RUN_ORPHANED", "launch claim changed during reclaim");
+      if (options.faultAfterTombstone) throw new Error("injected launch tombstone fault");
+      return publishFreshLaunch(run, await maxGeneration(run.runDirectory, observed.generation) + 1);
+    }
+    const tombstone = await latestLaunchTombstone(run.runDirectory);
+    if (!tombstone) throw runError("RUN_ORPHANED", "launch lock is missing without a reclaim tombstone");
+    if (await reclaimBlocked(run, tombstone.claim, options.bootGraceMs ?? 5_000, tombstone.path)) throw runError("RUN_ORPHANED", "tombstoned launch has durable worker evidence");
+    return publishFreshLaunch(run, await maxGeneration(run.runDirectory, tombstone.claim.generation) + 1);
+  });
+}
+
+async function reclaimBlocked(run: StoredRun, claim: LaunchClaim, bootGraceMs: number, lock: string): Promise<boolean> {
+  if (await readRecord(lock, "spawn.json")) return true;
+  const attempt = join(run.runDirectory, "attempts", `${claim.generation}-${claim.token}`);
+  try {
+    const info = await lstat(attempt);
+    if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o777) !== 0o700) throw runError("RUN_ORPHANED", "attempt path is unsafe for launch reclaim");
+    if (await readRecord(attempt, "boot.json")) return true;
+  } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  if (await readRecord(run.runDirectory, "execution-started.json")) return true;
+  const heartbeat = await readHeartbeat(lock, claim);
+  if (Date.now() - Date.parse(heartbeat.updatedAt) < bootGraceMs) return true;
+  return false;
+}
+async function optionalLaunchClaim(lock: string): Promise<LaunchClaim | undefined> { try { await lstat(lock); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; } return readClaim(lock); }
+async function latestLaunchTombstone(runDirectory: string): Promise<{ path: string; claim: LaunchClaim } | undefined> {
+  const names = (await readdir(runDirectory)).filter((name) => name.startsWith("launch.lock.tombstone-"));
+  const records: Array<{ path: string; claim: LaunchClaim }> = [];
+  for (const name of names) {
+    const match = name.match(/^launch\.lock\.tombstone-(\d+)-([A-Za-z0-9_-]{43})$/);
+    if (!match) throw runError("RUN_ORPHANED", "invalid launch tombstone identity");
+    const path = join(runDirectory, name); const claim = await readClaim(path);
+    if (claim.generation !== Number(match[1]) || claim.token !== match[2]) throw runError("RUN_ORPHANED", "launch tombstone does not bind its claim");
+    records.push({ path, claim });
+  }
+  records.sort((a, b) => b.claim.generation - a.claim.generation);
+  return records[0];
+}
+async function publishFreshLaunch(run: StoredRun, generation: number): Promise<StoredRun> {
+  const lock = join(run.runDirectory, "launch.lock"); const temp = join(run.runDirectory, `.launch-next-${randomToken()}`);
+  await mkdir(temp, { mode: 0o700 });
+  try {
+    const owner = await currentProcessIdentity();
+    const body = { version: 1 as const, kind: "claim" as const, generation, token: randomToken(), owner, createdAt: new Date().toISOString() };
+    const claim: LaunchClaim = { ...body, digest: sha256(stableJson(body)) };
+    await publishRecord(temp, "claim.json", claim); await publishRecord(temp, "heartbeat.json", { kind: "heartbeat", generation, token: claim.token, owner, updatedAt: claim.createdAt });
+    await rename(temp, lock);
+    return { ...run, claim };
+  } finally { await rm(temp, { recursive: true, force: true }); }
+}
+async function maxGeneration(runDirectory: string, current: number): Promise<number> {
+  let names: string[];
+  try { names = await readdir(join(runDirectory, "attempts")); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return current; throw error; }
+  const generations = names.map((name) => {
+    const match = name.match(/^(\d+)-([A-Za-z0-9_-]{43})$/);
+    if (!match) throw runError("RUN_ORPHANED", "attempt directory has an invalid generation identity");
+    const generation = Number(match[1]);
+    if (!Number.isSafeInteger(generation) || generation < 1) throw runError("RUN_ORPHANED", "attempt generation is invalid");
+    return generation;
+  });
+  const maximum = Math.max(current, ...generations);
+  if (!Number.isSafeInteger(maximum) || maximum >= Number.MAX_SAFE_INTEGER) throw runError("RUN_ORPHANED", "launch generation cannot be incremented safely");
+  return maximum;
+}
+function randomToken(): string { return randomBytes(32).toString("base64url"); }
 
 export async function launchRunWorker(run: StoredRun, entrypoint: string, options: LaunchOptions = {}): Promise<SidecarRunHandle> {
   const lock = join(run.runDirectory, "launch.lock");
   const claim = await readClaim(lock);
-  if (stableJson(claim) !== stableJson(run.claim) || !await matchesProcessIdentity(claim.owner)) throw runError("RUN_ORPHANED", "launch claim is not durably owned by this coordinator");
+  const caller = await currentProcessIdentity();
+  if (stableJson(claim) !== stableJson(run.claim) || stableJson(claim.owner) !== stableJson(caller)) throw runError("RUN_ORPHANED", "launch claim is not durably owned by this coordinator");
   const attempt = await attemptDirectory(run.runDirectory, claim.generation, claim.token);
   const privateAppend = constants.O_APPEND | constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW;
   const graceMs = options.terminationGraceMs ?? 50;

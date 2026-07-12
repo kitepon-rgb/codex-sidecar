@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { lstat, mkdtemp, rm } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
-import { launchRunWorker } from "./run-launch.js";
+import { acquireOrReclaimLaunchClaim, launchRunWorker } from "./run-launch.js";
 import { matchesProcessIdentity } from "./process-identity.js";
-import { attemptDirectory, readRecord, type SpawnRecord } from "./run-records.js";
+import { attemptDirectory, publishRecord, readRecord, type SpawnRecord } from "./run-records.js";
+import { sha256, stableJson } from "./run-foundation.js";
 import { openOrCreateRun } from "./run-store.js";
 import type { StoredRun } from "./run-types.js";
 import type { SidecarRequest } from "./types.js";
@@ -94,6 +95,64 @@ test("response discard後もspawn/ready recordを再読できる", async (t) => 
   const ready = await readRecord(attempt, "ready.json");
   assert.equal(ready?.token, retry.claim.token);
   await stop(await readRecord(join(run.runDirectory, "launch.lock"), "spawn.json"));
+});
+
+test("a foreign process cannot launch a worker from a live coordinator claim", async (t) => {
+  const run = await make(t); const module = new URL("./run-launch.js", import.meta.url).pathname;
+  const code = `import {launchRunWorker} from ${JSON.stringify(module)}; const run=${JSON.stringify(run)}; launchRunWorker(run,${JSON.stringify(fixture)}).then(()=>process.exit(9),e=>process.exit(e.code==='RUN_ORPHANED'?0:8))`;
+  await exec(process.execPath, ["--input-type=module", "-e", code]);
+  assert.equal(await readRecord(join(run.runDirectory, "launch.lock"), "spawn.json"), undefined);
+});
+
+test("dead pre-spawn publisher is reclaimed under transition with a fenced next generation", async (t) => {
+  const run = await make(t); const lock = join(run.runDirectory, "launch.lock");
+  await rm(lock, { recursive: true }); await mkdir(lock, { mode: 0o700 });
+  const body = { version: 1 as const, kind: "claim" as const, generation: 4, token: "Z".repeat(43), owner: { pid: 999999, startIdentity: "dead" }, createdAt: "2000-01-01T00:00:00.000Z" };
+  const stale = { ...body, digest: sha256(stableJson(body)) };
+  await publishRecord(lock, "claim.json", stale); await publishRecord(lock, "heartbeat.json", { kind: "heartbeat", generation: 4, token: stale.token, owner: stale.owner, updatedAt: body.createdAt });
+  const reclaimed = await acquireOrReclaimLaunchClaim({ ...run, claim: stale }, { bootGraceMs: 1 });
+  assert.equal(reclaimed.claim.generation, 5);
+  assert.notEqual(reclaimed.claim.token, stale.token);
+  assert.equal((await readRecord(join(run.runDirectory, "launch.lock.tombstone-4-" + stale.token), "claim.json"))?.token, stale.token);
+});
+
+test("reclaim resumes from a durable tombstone after the launcher dies before next claim", async (t) => {
+  const run = await make(t); const lock = join(run.runDirectory, "launch.lock");
+  await rm(lock, { recursive: true }); await mkdir(lock, { mode: 0o700 });
+  const body = { version: 1 as const, kind: "claim" as const, generation: 3, token: "V".repeat(43), owner: { pid: 999999, startIdentity: "dead" }, createdAt: "2000-01-01T00:00:00.000Z" }; const stale = { ...body, digest: sha256(stableJson(body)) };
+  await publishRecord(lock, "claim.json", stale); await publishRecord(lock, "heartbeat.json", { kind: "heartbeat", generation: 3, token: stale.token, owner: stale.owner, updatedAt: body.createdAt });
+  await assert.rejects(() => acquireOrReclaimLaunchClaim({ ...run, claim: stale }, { bootGraceMs: 1, faultAfterTombstone: true }));
+  await assert.rejects(() => lstat(lock), { code: "ENOENT" });
+  const recovered = await acquireOrReclaimLaunchClaim({ ...run, claim: stale }, { bootGraceMs: 1 });
+  assert.equal(recovered.claim.generation, 4);
+});
+
+test("an exited OS publisher is reclaimed and concurrent callers converge on one claim", async (t) => {
+  const run = await make(t); const lock = join(run.runDirectory, "launch.lock");
+  const identityModule = new URL("./process-identity.js", import.meta.url).pathname;
+  const { stdout } = await exec(process.execPath, ["--input-type=module", "-e", `import {currentProcessIdentity} from ${JSON.stringify(identityModule)}; console.log(JSON.stringify(await currentProcessIdentity()))`], { encoding: "utf8" });
+  const deadOwner = JSON.parse(stdout.trim()) as { pid: number; startIdentity: string };
+  await rm(lock, { recursive: true }); await mkdir(lock, { mode: 0o700 });
+  const body = { version: 1 as const, kind: "claim" as const, generation: 7, token: "W".repeat(43), owner: deadOwner, createdAt: "2000-01-01T00:00:00.000Z" };
+  const stale = { ...body, digest: sha256(stableJson(body)) };
+  await publishRecord(lock, "claim.json", stale); await publishRecord(lock, "heartbeat.json", { kind: "heartbeat", generation: 7, token: stale.token, owner: stale.owner, updatedAt: body.createdAt });
+  const [a, b] = await Promise.all([acquireOrReclaimLaunchClaim({ ...run, claim: stale }, { bootGraceMs: 1 }), acquireOrReclaimLaunchClaim({ ...run, claim: stale }, { bootGraceMs: 1 })]);
+  assert.equal(a.claim.generation, 8); assert.equal(b.claim.generation, 8); assert.equal(a.claim.token, b.claim.token);
+  assert.equal((await readRecord(join(run.runDirectory, "launch.lock"), "claim.json"))?.token, a.claim.token);
+});
+
+test("dead publisher with spawn, boot, or execution evidence is never automatically reclaimed", async (t) => {
+  for (const evidence of ["spawn", "boot", "execution", "unsafe-attempt"] as const) await t.test(evidence, async (t) => {
+    const run = await make(t); const lock = join(run.runDirectory, "launch.lock"); await rm(lock, { recursive: true }); await mkdir(lock, { mode: 0o700 });
+    const body = { version: 1 as const, kind: "claim" as const, generation: 2, token: "Y".repeat(43), owner: { pid: 999999, startIdentity: "dead" }, createdAt: "2000-01-01T00:00:00.000Z" }; const stale = { ...body, digest: sha256(stableJson(body)) };
+    await publishRecord(lock, "claim.json", stale); await publishRecord(lock, "heartbeat.json", { kind: "heartbeat", generation: 2, token: stale.token, owner: stale.owner, updatedAt: body.createdAt });
+    if (evidence === "spawn") await publishRecord(lock, "spawn.json", { kind: "spawn", generation: 2, token: stale.token, pid: 2, pgid: 2, processIdentity: { pid: 2, startIdentity: "x" }, createdAt: body.createdAt });
+    if (evidence === "boot") { const attempt = await attemptDirectory(run.runDirectory, 2, stale.token); await publishRecord(attempt, "boot.json", { kind: "boot", generation: 2, token: stale.token, pid: 2, pgid: 2, processIdentity: { pid: 2, startIdentity: "x" }, createdAt: body.createdAt }); }
+    if (evidence === "execution") await publishRecord(run.runDirectory, "execution-started.json", { kind: "execution-started", generation: 2, token: stale.token, createdAt: body.createdAt });
+    if (evidence === "unsafe-attempt") { const attempts = join(run.runDirectory, "attempts"); await mkdir(attempts, { mode: 0o700 }); await symlink("/tmp", join(attempts, `2-${stale.token}`)); }
+    await assert.rejects(() => acquireOrReclaimLaunchClaim({ ...run, claim: stale }, { bootGraceMs: 1 }), { code: "RUN_ORPHANED" });
+    assert.equal((await readRecord(lock, "claim.json"))?.token, stale.token);
+  });
 });
 
 async function make(t: test.TestContext): Promise<StoredRun> {

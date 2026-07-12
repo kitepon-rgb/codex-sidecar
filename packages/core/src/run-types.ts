@@ -2,6 +2,12 @@ import type { RequestInput } from "./presets.js";
 import type { SidecarRequest } from "./types.js";
 import type { ProcessIdentity } from "./process-identity.js";
 
+export type {
+  SidecarRunCancelAck, SidecarRunCancelResult, SidecarRunFailure, SidecarRunHandle,
+  SidecarRunInterrupted, SidecarRunOperationError, SidecarRunPending, SidecarRunPollResult,
+  SidecarRunStartResult, SidecarRunTerminal,
+} from "./types.js";
+
 /**
  * The caller-controlled part of a work start request.  It deliberately does
  * not include projectRoot, baseRef, or idempotencyKey: those are stored by the
@@ -20,6 +26,49 @@ export interface RunStartInput {
   /** The caller's literal base reference; absent means the API default, HEAD. */
   baseRef?: string;
 }
+
+/** Public input for `codex_work_start`; work flags stay flat at the tool boundary. */
+export type StartInput = WorkStartRawInput & {
+  projectRoot: string;
+  idempotencyKey: string;
+  baseRef?: string;
+};
+
+/** Public input for `codex_work_result`; runId alone is intentionally insufficient. */
+export interface LookupInput {
+  projectRoot: string;
+  idempotencyKey: string;
+}
+
+/** Public input for `codex_work_cancel`; it has the same lookup identity. */
+export type ResultInput = LookupInput;
+export type CancelInput = LookupInput;
+
+/** The four explicitly operator-confirmed auth recovery strategies. */
+export enum WorkAuthRecoveryStrategy {
+  WriteBackRunLocal = "write-back-run-local",
+  KeepCanonicalAfterLogin = "keep-canonical-after-login",
+  ReleaseNeverStarted = "release-never-started",
+  ReleaseClean = "release-clean",
+}
+
+/** Public input for `codex_work_recover`; mutation requires both exact fields. */
+export type WorkRecoverInput = LookupInput & (
+  | { action?: undefined; confirmNoRunningProcesses?: undefined }
+  | { action: "quarantine"; confirmNoRunningProcesses: true }
+);
+
+/** Public input for the run-owned auth recovery operation. */
+export type WorkAuthRecoverInput = LookupInput & {
+  strategy: WorkAuthRecoveryStrategy;
+  confirmNoRunningProcesses: true;
+};
+
+/** Stable aliases for consumers that use workflow-prefixed public contracts. */
+export type WorkStartInput = StartInput;
+export type WorkLookupInput = LookupInput;
+export type WorkResultInput = ResultInput;
+export type WorkCancelInput = CancelInput;
 
 export interface NewRunSnapshot {
   /** Config/preset-normalized execution request. It is never used for retry matching. */

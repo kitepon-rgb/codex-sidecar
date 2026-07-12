@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 export class RunStoreError extends Error {
   constructor(
-    readonly code: "RUN_KEY_CONFLICT" | "RUN_STORE_CORRUPT" | "RUN_INVALID_INPUT" | "RUN_INTERNAL_ERROR",
+    readonly code: "RUN_NOT_FOUND" | "RUN_KEY_CONFLICT" | "RUN_STORE_CORRUPT" | "RUN_READY_TIMEOUT" | "RUN_ORPHANED" | "RUN_AUTH_UNCERTAIN" | "RUN_UNSUPPORTED_PLATFORM" | "RUN_INVALID_INPUT" | "RUN_INTERNAL_ERROR",
     message: string,
   ) {
     super(`${code}: ${message}`);

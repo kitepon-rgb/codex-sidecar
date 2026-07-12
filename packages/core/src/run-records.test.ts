@@ -3,7 +3,7 @@ import { chmod, lstat, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { attemptDirectory, ensureRecordDirectory, publishRecord, readClaim, readHeartbeat, readRecord, replaceHeartbeat } from "./run-records.js";
+import { attemptDirectory, ensureRecordDirectory, promoteResultToTerminal, publishRecord, readClaim, readHeartbeat, readRecord, replaceHeartbeat } from "./run-records.js";
 import { sha256, stableJson } from "./run-store.js";
 import type { LaunchClaim } from "./run-types.js";
 
@@ -55,6 +55,7 @@ test("record API rejects malformed typed records, unsupported names, and filenam
   await assert.rejects(() => publishRecord(dir, "ready.json", { kind: "ready", generation: 1, token }));
   await assert.rejects(() => publishRecord(dir, "claim.json", { kind: "spawn", generation: 1, token, pid: 0, pgid: 0 }));
   await assert.rejects(() => publishRecord(dir, "heartbeat.json", claim()));
+  await assert.rejects(() => publishRecord(dir, "execution-started.json", { kind: "execution-started", generation: Number.MAX_SAFE_INTEGER + 1, token, createdAt: "2026-07-12T00:00:00.000Z" }));
 });
 
 test("spawn reader rejects digest-valid invalid process fields and unknown keys", async (t) => {
@@ -120,4 +121,51 @@ test("claim rejects unknown or missing keys, invalid token/generation/timestamp/
   await rm(claimPath);
   await symlink(external, claimPath);
   await assert.rejects(() => readClaim(lock), { code: "RUN_STORE_CORRUPT" });
+});
+
+test("run-level immutable records are strict, and a durable result promotes exactly one terminal", async (t) => {
+  const dir = await directory(t);
+  const result = { status: "ok", workflow: "work", summary: "done", confidence: { level: "high", rationale: "test" }, recommendedNextAction: "none", unvalidatedReport: { preserved: true } };
+  await publishRecord(dir, "cancel.json", { kind: "cancel", observedGeneration: 1, observedToken: token, createdAt: "2026-07-12T00:00:00.000Z" });
+  await publishRecord(dir, "execution-started.json", { kind: "execution-started", generation: 1, token, createdAt: "2026-07-12T00:00:00.000Z" });
+  await publishRecord(dir, "quarantine.json", { kind: "quarantine", generation: 1, token, createdAt: "2026-07-12T00:00:00.000Z" });
+  await publishRecord(dir, "result.json", { kind: "result", generation: 1, token, result, createdAt: "2026-07-12T00:00:00.000Z" });
+  await publishRecord(dir, "cleanup.json", { kind: "cleanup", generation: 1, token, state: "not-requested", createdAt: "2026-07-12T00:00:00.000Z" });
+  const terminal = await promoteResultToTerminal(dir, 1, token);
+  assert.equal(terminal.state, "completed");
+  assert.equal(terminal.resultDigest, (await readRecord(dir, "result.json"))!.digest);
+  await assert.rejects(() => publishRecord(dir, "terminal.json", { kind: "terminal", generation: 1, token, state: "failed", resultDigest: "0".repeat(64), createdAt: "2026-07-12T00:00:00.000Z" }), { code: "RUN_STORE_CORRUPT" });
+  await assert.rejects(() => publishRecord(dir, "result.json", { kind: "result", generation: 1, token, result: { ...result, unexpected: true }, createdAt: "2026-07-12T00:00:00.000Z" }));
+  await assert.rejects(() => publishRecord(dir, "result.json", { kind: "result", generation: 2, token, result: {}, createdAt: "2026-07-12T00:00:00.000Z" }));
+  await assert.rejects(() => publishRecord(dir, "result.json", { kind: "result", generation: 2, token, result: { ...result, changedFiles: [1] }, createdAt: "2026-07-12T00:00:00.000Z" }));
+  await assert.rejects(() => publishRecord(dir, "result.json", { kind: "result", generation: 2, token, result: { ...result, confidence: { level: "high", extra: true } }, createdAt: "2026-07-12T00:00:00.000Z" }));
+  await assert.rejects(() => publishRecord(dir, "result.json", { kind: "result", generation: 2, token, result: { ...result, workflow: "review" }, createdAt: "2026-07-12T00:00:00.000Z" }));
+  await assert.rejects(() => publishRecord(dir, "result.json", { kind: "result", generation: 2, token, result: { ...result, error: { code: "MADE_UP", message: "x" } }, createdAt: "2026-07-12T00:00:00.000Z" }));
+  await assert.rejects(() => publishRecord(dir, "result.json", { kind: "result", generation: 2, token, result: { ...result, normalizedRequest: { workflow: "work", projectRoot: "/x", readonly: false, requireWorktree: true, focus: [], allowedPaths: [], denyPaths: [], safetyProfile: "made-up", resultFormat: "json", turnTimeoutMs: 1, interruptOnTimeout: true, preserveWorktree: true, context: [{ kind: "made-up" }], dryRun: false } }, createdAt: "2026-07-12T00:00:00.000Z" }));
+  await assert.rejects(() => publishRecord(dir, "cancel.json", { kind: "cancel", generation: 1, token, observedGeneration: 1, observedToken: token, createdAt: "2026-07-12T00:00:00.000Z" }));
+});
+
+test("a competing terminal bound to the same result wins without overwrite", async (t) => {
+  const dir = await directory(t);
+  const result = { status: "failed", workflow: "work", summary: "cancelled", confidence: { level: "high" }, recommendedNextAction: "poll" };
+  await publishRecord(dir, "result.json", { kind: "result", generation: 1, token, result, createdAt: "2026-07-12T00:00:00.000Z" });
+  const durable = await readRecord(dir, "result.json");
+  await publishRecord(dir, "terminal.json", { kind: "terminal", generation: 1, token, state: "cancelled", resultDigest: durable!.digest, createdAt: "2026-07-12T00:00:01.000Z" });
+  const winner = await promoteResultToTerminal(dir, 1, token);
+  assert.equal(winner.state, "cancelled");
+});
+
+test("run-level readers reject digest-valid unknown keys, modes, symlinks, and filename mismatch", async (t) => {
+  const dir = await directory(t);
+  const body = { version: 1, kind: "terminal", generation: 1, token, state: "completed", resultDigest: "a".repeat(64), createdAt: "2026-07-12T00:00:00.000Z", unexpected: true };
+  await writeFile(join(dir, "terminal.json"), JSON.stringify({ ...body, digest: sha256(stableJson(body)) }), { mode: 0o600 });
+  await assert.rejects(() => readRecord(dir, "terminal.json"), { code: "RUN_STORE_CORRUPT" });
+  await rm(join(dir, "terminal.json"));
+  await publishRecord(dir, "terminal.json", { kind: "terminal", generation: 1, token, state: "completed", resultDigest: "a".repeat(64), createdAt: "2026-07-12T00:00:00.000Z" });
+  await chmod(join(dir, "terminal.json"), 0o644);
+  await assert.rejects(() => readRecord(dir, "terminal.json"), { code: "RUN_STORE_CORRUPT" });
+  await chmod(join(dir, "terminal.json"), 0o600);
+  const external = join(dir, "external-terminal.json"); await writeFile(external, await readFile(join(dir, "terminal.json")), { mode: 0o600 }); await rm(join(dir, "terminal.json")); await symlink(external, join(dir, "terminal.json"));
+  await assert.rejects(() => readRecord(dir, "terminal.json"), { code: "RUN_STORE_CORRUPT" });
+  await assert.rejects(() => publishRecord(dir, "terminal.json", { kind: "result", generation: 1, token, result: {}, createdAt: "2026-07-12T00:00:00.000Z" }));
 });
