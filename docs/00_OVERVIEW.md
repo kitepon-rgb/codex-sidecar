@@ -19,7 +19,6 @@ MCP/server or provider tables.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and dependency direction.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server boundary, stable contracts, structured output, and transport notes.
 - [TODO.md](TODO.md): durable project task list and external coordination.
-- [RELEASE_0_3_3_PLAN.md](RELEASE_0_3_3_PLAN.md): active 0.3.3 release and Docker verification checklist.
 - [adr/](adr/): architecture decision records. No ADR entries are filed yet.
 
 ## Layout Standard Status

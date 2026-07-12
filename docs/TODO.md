@@ -11,8 +11,8 @@ restart are implemented and verified. The completed plan is archived at
 [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md).
 No repository-local P0 is currently marked Planned.
 
-The 0.3.3 publication and Docker verification checklist is tracked in
-[RELEASE_0_3_3_PLAN.md](RELEASE_0_3_3_PLAN.md).
+The completed 0.3.3 publication and Docker verification record is archived at
+[RELEASE_0_3_3_PLAN.md](archive/RELEASE_0_3_3_PLAN.md).
 
 The 0.3.3 release record also covers explicit kill/auth recovery constraints,
 schema-partial preservation for completed worktrees, and isolated `CODEX_HOME`
@@ -42,6 +42,7 @@ changes.
 | P0 | Fix npm symlinked `codex-sidecar-mcp` bin startup | Done | 0.3.1 |
 | P0 | Degrade schema-drifted structured reports to `status: "partial"` (salvage completed `codex_work` worktrees) instead of hard-failing | Done | [STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](STRUCTURED_OUTPUT_TOLERANCE_PLAN.md) |
 | P0 | Make long-running `codex_work` survive MCP client restart and expose durable result retrieval | Done | [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md) |
+| P2 | Add a supported `codex-sidecar --version` CLI flag | Planned | [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md#mcp-tasks--progress--version) |
 
 ## Local CodeGraph Setup
 

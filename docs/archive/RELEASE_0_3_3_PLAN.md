@@ -1,6 +1,6 @@
 # 0.3.3 Release Plan
 
-Status: In Progress
+Status: Complete
 
 ## Goal
 
@@ -82,6 +82,23 @@ evidence.
 - [x] Commit the documentation/release record with explicit pathspecs.
 - [x] Push the pre-publication `main` commit and confirm CI.
 - [x] Publish core, CLI, and MCP 0.3.3 and run installed-package smoke tests.
-- [ ] Create and verify tag/release `v0.3.3` at the verified publication
+- [x] Create and verify tag/release `v0.3.3` at the verified publication
   commit.
-- [ ] Mark this plan complete, archive it, and push the post-release record.
+- [x] Mark this plan complete and archive it as the post-release record.
+
+## Completion Evidence
+
+- Local and GitHub Actions gates passed: core 247 tests, CLI 5 tests, MCP 19
+  tests, typecheck, and build.
+- `codex-sidecar-core`, `codex-sidecar-cli`, and `codex-sidecar-mcp` 0.3.3 are
+  public on npm with exact `codex-sidecar-core: 0.3.3` consumer dependencies.
+- A fresh registry install returned `auth-status.state = "available"` and the
+  MCP server listed 12 tools, including all five durable work controls.
+- Docker image `codex-sidecar:0.3.3` built and its temporary HTTP smoke returned
+  `serverInfo.version = "0.3.3"`; no persistent host deployment was attempted.
+- GitHub Actions runs `29196064957` and `29196222342` completed successfully.
+- Tag and release `v0.3.3` resolve to publication commit
+  `167156ce7f5c88a760d5ba1a04defaa3e2ad4134`.
+- The optional `codex-sidecar --version` smoke remains unsupported and is
+  tracked separately in the current TODO; it was not reported as a passing
+  0.3.3 release gate.

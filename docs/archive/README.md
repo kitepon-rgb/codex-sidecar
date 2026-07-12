@@ -9,6 +9,7 @@ current behavior.
 - [PLAN.md](PLAN.md): original phase roadmap for building `codex-sidecar`.
 - [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](LONG_RUNNING_WORK_RESILIENCE_PLAN.md): completed plan for durable long-running `codex_work` execution and recovery.
 - [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md): completed explicit Codex model policy and Caveat rollout plan.
+- [RELEASE_0_3_3_PLAN.md](RELEASE_0_3_3_PLAN.md): completed 0.3.3 publication, package smoke, Docker verification, and release record.
 - [external-handoffs/](external-handoffs/): briefs intended to be copied into
   neighboring repositories when first-class Codex support was being planned.
 
