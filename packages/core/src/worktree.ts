@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { lstat, mkdtemp, open, readdir, realpath } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, open, readdir, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -64,6 +64,10 @@ export async function createWorktree(plan: WorktreePlan): Promise<WorktreePlan> 
 
   args.push(plan.worktreePath, plan.baseRef);
   await runGit(plan.projectRoot, args);
+  // The checkout lives below a private durable run directory in async mode.
+  // Git creates the root using the caller umask, so tighten that boundary
+  // explicitly without rewriting the checked-out source file modes.
+  await chmod(plan.worktreePath, 0o700);
   return plan;
 }
 

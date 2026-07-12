@@ -142,6 +142,26 @@ test("executeWorktreeAppServerRequest retains a non-preserved worktree for expli
   assert.equal(removed, true);
 });
 
+test("executeWorktreeAppServerRequest checks durable cancellation before any worktree side effect", async () => {
+  const cancellation = new AbortController();
+  cancellation.abort(new Error("cancelled"));
+  const calls: string[] = [];
+
+  const execution = await executeWorktreeAppServerRequest(request, {
+    abortSignal: cancellation.signal,
+    dependencies: {
+      plan: async () => { calls.push("plan"); return plan; },
+      create: async (createdPlan) => { calls.push("create"); return createdPlan; },
+      runAppServer: async (worktreeRequest) => { calls.push("run"); return okResult(worktreeRequest); },
+    },
+  });
+
+  assert.equal(execution.created, false);
+  assert.equal(execution.result.status, "failed");
+  assert.equal(execution.result.error?.code, "APP_SERVER_CANCELLED");
+  assert.deepEqual(calls, []);
+});
+
 test("cleanupWorktreeExecution is a no-op for preserved and uncreated worktrees", async () => {
   let removeCalls = 0;
   const options = { dependencies: { remove: async () => { removeCalls += 1; } } };

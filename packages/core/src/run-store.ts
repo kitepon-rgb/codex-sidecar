@@ -359,7 +359,10 @@ async function canonicalizeNormalizedRequest(value: unknown, callerWorktreePath:
   if (normalizedProjectRoot !== callerWorktreePath) {
     throw new RunStoreError("RUN_INTERNAL_ERROR", "normalized work-start request targets a different project root");
   }
-  return { ...request, projectRoot: callerWorktreePath };
+  // Config normalization intentionally represents omitted optional fields as
+  // `undefined`. The manifest is canonical JSON, so preserve the omission
+  // rather than passing a non-JSON value into its stable digest.
+  return removeUndefined({ ...request, projectRoot: callerWorktreePath }) as unknown as SidecarRequest;
 }
 function isOptionalString(value: unknown): boolean { return value === undefined || typeof value === "string"; }
 function isStringArray(value: unknown): value is string[] { return Array.isArray(value) && value.every((entry) => typeof entry === "string"); }

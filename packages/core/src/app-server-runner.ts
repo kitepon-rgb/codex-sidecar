@@ -30,6 +30,10 @@ export interface AppServerRunOptions {
   allowWorkWorkflow?: boolean;
   authCacheRoot?: string;
   authBaseEnv?: NodeJS.ProcessEnv;
+  /** An async work worker's already-held durable auth session. */
+  authSession?: DurableAuthSession;
+  /** Cooperative worker cancellation; it interrupts the owned App Server turn. */
+  abortSignal?: AbortSignal;
   /** @internal deterministic process seam; durable auth still wraps this factory. */
   clientFactory?: (options: AppServerClientOptions) => AppServerSessionClient;
 }
@@ -48,7 +52,8 @@ export async function runReadOnlyAppServerRequest(
   let logger: AppServerEventLogger | undefined;
   let client: AppServerSessionClient | undefined;
   let ownsClient = false;
-  let authSession: DurableAuthSession | undefined;
+  let authSession: DurableAuthSession | undefined = options.authSession;
+  let ownsAuthSession = false;
 
   try {
     logger = await createAppServerEventLogger(request, { logDir: options.eventLogDir });
@@ -68,8 +73,11 @@ export async function runReadOnlyAppServerRequest(
       },
     });
 
-    if (options.client === undefined) {
+    if (authSession) {
+      await authSession.markAppServerStarted();
+    } else if (options.client === undefined) {
       authSession = await createDurableAuthSession({ ownerKind: "sync-session", cacheRoot: options.authCacheRoot, baseEnv: options.authBaseEnv });
+      ownsAuthSession = true;
       await authSession.markAppServerStarted();
     }
     client =
@@ -116,6 +124,15 @@ export async function runReadOnlyAppServerRequest(
       data: { threadId, turnId, turnTimeoutMs },
     });
 
+    let abortHandler: (() => void) | undefined;
+    if (options.abortSignal) {
+      abortHandler = () => {
+        logger?.write({ category: "lifecycle", event: "turn/interrupt/cancel-requested", data: { threadId, turnId } });
+        void interruptTurnAfterTimeout(client!, logger!, threadId, turnId);
+      };
+      options.abortSignal.addEventListener("abort", abortHandler, { once: true });
+      if (options.abortSignal.aborted) abortHandler();
+    }
     try {
       await client.waitForNotification(
         (notification) => findTurnCompletion([notification], filter) !== undefined,
@@ -137,11 +154,17 @@ export async function runReadOnlyAppServerRequest(
         await interruptTurnAfterTimeout(client, logger, threadId, turnId);
       }
       throw new Error(`APP_SERVER_TIMEOUT: App Server turn timed out after ${turnTimeoutMs}ms for thread=${threadId} turn=${turnId}`);
+    } finally {
+      if (abortHandler) options.abortSignal?.removeEventListener("abort", abortHandler);
     }
 
     // Persist any atomic auth rotation while this coordinator still owns the
     // App Server handle. A later abnormal loss may recover only this evidence.
     await authSession?.recordRunLocalRotation();
+
+    if (options.abortSignal?.aborted) {
+      throw new Error(`APP_SERVER_CANCELLED: App Server turn was cancelled for thread=${threadId} turn=${turnId}`);
+    }
 
     const completion = findTurnCompletion(client.notifications, filter);
     if (!completion) {
@@ -219,7 +242,7 @@ export async function runReadOnlyAppServerRequest(
     if (ownsClient && client) {
       try { await client.close?.(); } catch (error) { cleanupError = error; }
     }
-    if (!cleanupError && authSession) {
+    if (!cleanupError && ownsAuthSession && authSession) {
       try { await authSession.closeClean(); } catch (error) { cleanupError = error; }
     }
     await logger?.close();

@@ -43,6 +43,8 @@ export * from "./requests.js";
 export * from "./results.js";
 export { WorkAuthRecoveryStrategy } from "./run-types.js";
 export type { StartInput, ResultInput, CancelInput, WorkRecoverInput, WorkAuthRecoverInput, WorkStartInput, WorkResultInput, WorkCancelInput } from "./run-types.js";
+export { startWorkRun, getWorkRunResult, cancelWorkRun } from "./work-run-service.js";
+export type { WorkRunStartOptions } from "./work-run-service.js";
 export * from "./safety.js";
 export * from "./structured-output.js";
 export * from "./worktree.js";

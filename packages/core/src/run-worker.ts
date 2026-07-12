@@ -4,12 +4,17 @@ import { currentProcessIdentity } from "./process-identity.js";
 import { attemptDirectory, publishRecord, readRecord, replaceWorkerHeartbeat } from "./run-records.js";
 import { stableJson } from "./run-foundation.js";
 import { readStoredRunDirectory } from "./run-store.js";
+import { executeDurableWorkRun } from "./work-run-worker.js";
 
 export function workerEntrypoint(): string { return new URL("./run-worker.js", import.meta.url).pathname; }
 
 export interface RunWorkerOptions { heartbeatIntervalMs?: number; }
 
-export async function runWorker(runDirectory: string, action: (signal: AbortSignal) => Promise<void> = async () => {}, options: RunWorkerOptions = {}): Promise<void> {
+export async function runWorker(
+  runDirectory: string,
+  action: (signal: AbortSignal) => Promise<void> = (signal) => executeDurableWorkRun(runDirectory, signal),
+  options: RunWorkerOptions = {},
+): Promise<void> {
   const intervalMs = options.heartbeatIntervalMs ?? 1_000;
   if (!Number.isInteger(intervalMs) || intervalMs < 10) throw Object.assign(new Error("RUN_INVALID_INPUT: heartbeatIntervalMs must be at least 10"), { code: "RUN_INVALID_INPUT" });
   readFileSync(3); // No run filesystem read or write is allowed before permit EOF.

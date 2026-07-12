@@ -145,6 +145,33 @@ test("run-level immutable records are strict, and a durable result promotes exac
   await assert.rejects(() => publishRecord(dir, "cancel.json", { kind: "cancel", generation: 1, token, observedGeneration: 1, observedToken: token, createdAt: "2026-07-12T00:00:00.000Z" }));
 });
 
+test("durable result records omit optional undefined fields without changing the JSON payload", async (t) => {
+  const dir = await directory(t);
+  const result = {
+    status: "ok" as const,
+    workflow: "work" as const,
+    summary: "done",
+    confidence: { level: "high" as const, rationale: undefined },
+    recommendedNextAction: "none",
+    findings: undefined,
+    risks: undefined,
+    tests: undefined,
+  };
+  await publishRecord(dir, "result.json", {
+    kind: "result", generation: 1, token, result, createdAt: "2026-07-12T00:00:00.000Z",
+  });
+
+  const durable = await readRecord(dir, "result.json");
+  assert.equal(durable?.kind, "result");
+  const stored = durable as unknown as { result: Record<string, unknown> };
+  assert.equal("findings" in stored.result, false);
+  assert.equal("risks" in stored.result, false);
+  assert.equal("tests" in stored.result, false);
+  const confidence = stored.result.confidence as Record<string, unknown>;
+  assert.equal("rationale" in confidence, false);
+  assert.equal((await promoteResultToTerminal(dir, 1, token)).state, "completed");
+});
+
 test("a competing terminal bound to the same result wins without overwrite", async (t) => {
   const dir = await directory(t);
   const result = { status: "failed", workflow: "work", summary: "cancelled", confidence: { level: "high" }, recommendedNextAction: "poll" };

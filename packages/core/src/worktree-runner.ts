@@ -24,6 +24,12 @@ export interface WorktreeRunnerDependencies {
 
 export interface WorktreeRunOptions extends WorktreeOptions {
   appServer?: AppServerRunOptions;
+  /**
+   * Cooperative durable-worker cancellation.  This is checked again before
+   * each worktree side effect; a cancellation that wins after execution has
+   * started may still observe earlier effects, but it never starts a later one.
+   */
+  abortSignal?: AbortSignal;
   dependencies?: WorktreeRunnerDependencies;
 }
 
@@ -60,9 +66,12 @@ export async function executeWorktreeAppServerRequest(
   let state: WorktreeState | undefined;
 
   try {
+    throwIfAborted(options.abortSignal);
     plan = await dependencies.plan(request, options);
+    throwIfAborted(options.abortSignal);
     await dependencies.create(plan);
     created = true;
+    throwIfAborted(options.abortSignal);
 
     const worktreeRequest: SidecarRequest = {
       ...request,
@@ -103,6 +112,11 @@ export async function executeWorktreeAppServerRequest(
     }
     return { request, plan, created, result };
   }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (!signal?.aborted) return;
+  throw new Error("APP_SERVER_CANCELLED: durable work cancellation requested before the next worktree side effect");
 }
 
 /**

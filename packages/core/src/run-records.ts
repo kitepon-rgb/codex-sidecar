@@ -91,7 +91,15 @@ export async function publishRecord(directory: string, name: string, body: objec
   await assertDirectory(directory);
   const expectedKind = recordKindForName(name);
   const { version: _version, digest: _digest, ...recordBody } = body as Record<string, unknown>;
-  const record = { version: 1 as const, ...recordBody };
+  const suppliedRecord = { version: 1 as const, ...recordBody };
+  // Callers hold typed in-memory results where absent optional fields are
+  // naturally represented as `undefined`; JSON has no such value.  Validate
+  // the supplied record first so an absent required field still fails, then
+  // remove only nested object properties that JSON.stringify would omit.  This
+  // keeps every durable record hashable without inventing data or accepting
+  // undefined array entries/non-JSON objects.
+  assertRecordSchema(suppliedRecord, expectedKind);
+  const record = omitUndefinedJsonProperties(suppliedRecord) as Record<string, unknown>;
   assertRecordSchema(record, expectedKind);
   const payload = { ...record, digest: sha256(stableJson(record)) };
   const finalPath = join(directory, name);
@@ -108,6 +116,32 @@ export async function publishRecord(directory: string, name: string, body: objec
   } finally {
     await rm(temporaryPath, { force: true });
   }
+}
+
+function omitUndefinedJsonProperties(value: unknown): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new RunStoreError("RUN_INVALID_INPUT", "durable record must be JSON-serializable");
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => {
+      if (entry === undefined) throw new RunStoreError("RUN_INVALID_INPUT", "durable record arrays must not contain undefined");
+      return omitUndefinedJsonProperties(entry);
+    });
+  }
+  if (typeof value !== "object" || value === undefined) {
+    throw new RunStoreError("RUN_INVALID_INPUT", "durable record must be JSON-serializable");
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new RunStoreError("RUN_INVALID_INPUT", "durable record must contain plain JSON objects");
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .map(([key, entry]) => [key, omitUndefinedJsonProperties(entry)]),
+  );
 }
 
 export async function readRecord(directory: string, name: string): Promise<RecordEnvelope | undefined> {

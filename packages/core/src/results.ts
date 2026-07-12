@@ -49,8 +49,8 @@ export function errorResult(request: SidecarRequest, error: SidecarError): Sidec
 export function modelPolicyInfo(request: SidecarRequest): ModelPolicyInfo {
   return {
     source: request.model || request.modelReasoningEffort ? "explicit" : "inherited",
-    model: request.model,
-    modelReasoningEffort: request.modelReasoningEffort,
+    ...(request.model === undefined ? {} : { model: request.model }),
+    ...(request.modelReasoningEffort === undefined ? {} : { modelReasoningEffort: request.modelReasoningEffort }),
   };
 }
 
