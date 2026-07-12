@@ -5,8 +5,12 @@ docs and the GitHub issues linked below.
 
 ## Current Priority
 
-Explicit Codex model selection is implemented in `codex-sidecar`. Track
-remaining Caveat-side preset and hook follow-up in
+The current P0 is disconnect-safe long-running `codex_work`: durable run state,
+detached execution, and result retrieval after MCP client restart. The canonical
+plan is [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](LONG_RUNNING_WORK_RESILIENCE_PLAN.md).
+
+Explicit Codex model selection is implemented in `codex-sidecar`; remaining
+Caveat-side preset and hook follow-up stays in
 [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md).
 
 The MCP npm-bin symlink startup bug is fixed in the 0.3.1 line. Keep the
@@ -26,6 +30,7 @@ changes.
 | P0 | Add explicit Codex model policy for sidecar presets | Done | [CODEX_MODEL_POLICY_TODO.md](CODEX_MODEL_POLICY_TODO.md) |
 | P0 | Fix npm symlinked `codex-sidecar-mcp` bin startup | Done | 0.3.1 |
 | P0 | Degrade schema-drifted structured reports to `status: "partial"` (salvage completed `codex_work` worktrees) instead of hard-failing | Done | [STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](STRUCTURED_OUTPUT_TOLERANCE_PLAN.md) |
+| P0 | Make long-running `codex_work` survive MCP client restart and expose durable result retrieval | Planned | [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](LONG_RUNNING_WORK_RESILIENCE_PLAN.md) |
 
 ## Local CodeGraph Setup
 
