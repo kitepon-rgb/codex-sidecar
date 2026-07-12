@@ -1,6 +1,6 @@
 # 長時間 `codex_work` の切断耐性計画
 
-Status: 緊急コンテキスト緩和完了・本修正契約は反証通過・Slice 0–5 の実装/検証完了・アーカイブ承認待ち
+Status: 完了・2026-07-12 に `docs/archive/` へアーカイブ
 作成日: 2026-07-12  
 対象: `codex_work`、MCP stdio/HTTP frontends、`packages/core` の実行境界  
 優先度: P0  
@@ -616,7 +616,7 @@ input なので、この正本へは保存しない。
 - [x] config変更後もsame raw start retryがwinner manifestから同じrunを返すことを確認する。
 - [x] refuter再監査、全tests/typecheck/build/package smokeを実行する。
 - [x] `README.md`、`USAGE.md`、`ARCHITECTURE.md`、`PROTOCOL.md`を更新する。
-- [ ] ownerの明示承認後、本計画を`docs/archive/`へ移し、`docs/TODO.md`を完了へ更新する。
+- [x] ownerの明示承認後、本計画を`docs/archive/`へ移し、`docs/TODO.md`を完了へ更新する。
 
 最終 gate（2026-07-12 JST）: refuter再監査はP0/P1なし。core 247/247、CLI 5/5、MCP 19/19、
 全 package のtypecheck/build、isolated packed installの`work-start --dry-run`、global 0.3.3 installの

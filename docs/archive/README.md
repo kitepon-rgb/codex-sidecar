@@ -7,6 +7,7 @@ current behavior.
 ## Contents
 
 - [PLAN.md](PLAN.md): original phase roadmap for building `codex-sidecar`.
+- [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](LONG_RUNNING_WORK_RESILIENCE_PLAN.md): completed plan for durable long-running `codex_work` execution and recovery.
 - [external-handoffs/](external-handoffs/): briefs intended to be copied into
   neighboring repositories when first-class Codex support was being planned.
 
