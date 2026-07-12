@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { requestRunCancellation } from "./run-control.js";
-import { readRecord } from "./run-records.js";
+import { publishRecord, readRecord } from "./run-records.js";
 import { openOrCreateRun } from "./run-store.js";
 import { inspectStoredWorkRun } from "./run-status.js";
 import { executeDurableWorkRun } from "./work-run-worker.js";
@@ -29,6 +29,18 @@ test("pre-start cancellation commits a cancelled terminal without acquiring auth
   assert.equal(terminal.result.error?.code, "APP_SERVER_CANCELLED");
   assert.equal(await readRecord(run.runDirectory, "execution-started.json"), undefined);
   assert.equal((await readRecord(run.runDirectory, "result.json"))?.kind, "result");
+});
+
+test("operator quarantine fences the worker before auth or worktree side effects", async (t) => {
+  const run = await make(t);
+  await publishRecord(run.runDirectory, "quarantine.json", {
+    kind: "quarantine", generation: run.claim.generation, token: run.claim.token, createdAt: new Date().toISOString(),
+  });
+
+  await assert.rejects(() => executeDurableWorkRun(run.runDirectory, new AbortController().signal), { code: "RUN_ORPHANED" });
+
+  assert.equal(await readRecord(run.runDirectory, "execution-started.json"), undefined);
+  assert.equal(await readRecord(run.runDirectory, "result.json"), undefined);
 });
 
 async function make(t: test.TestContext) {

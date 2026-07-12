@@ -28,6 +28,16 @@ export interface RunTransitionLease {
   claim: RunTransitionClaim;
 }
 
+/** Exact dead transition inode captured before an operator-approved release. */
+export interface DeadRunTransitionTarget {
+  runDirectory: string;
+  currentPath: string;
+  claimPath: string;
+  claim: RunTransitionClaim;
+  dev: bigint;
+  ino: bigint;
+}
+
 export type RunTransitionInspection =
   | { state: "available" }
   | { state: "held"; claim: RunTransitionClaim; ownerRunning: boolean };
@@ -86,6 +96,77 @@ export async function releaseRunTransition(lease: RunTransitionLease): Promise<v
     await __runTransitionTestHooks.beforeReleaseUnlink?.();
     await rm(current.currentPath);
   } catch (error) { throw error; }
+}
+
+/**
+ * Captures a dead transition owner and the exact current hard-link inode.  It
+ * does not mutate anything; callers must write their operator audit record
+ * before passing this target to `releaseDeadRunTransitionForOperator`.
+ */
+export async function captureDeadRunTransitionForOperator(runDirectory: string): Promise<DeadRunTransitionTarget | undefined> {
+  unsupported();
+  const canonicalRun = await canonicalDirectory(runDirectory);
+  let current: RunTransitionLease;
+  try {
+    current = await readCurrent(canonicalRun);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  if (await matchesProcessIdentity(current.claim.owner)) {
+    throw new RunStoreError("RUN_ORPHANED", "run transition owner is still running");
+  }
+  const [currentStat, claimStat] = await Promise.all([
+    lstat(current.currentPath, { bigint: true }),
+    lstat(current.claimPath, { bigint: true }),
+  ]);
+  if (currentStat.dev !== claimStat.dev || currentStat.ino !== claimStat.ino) {
+    throw new RunStoreError("RUN_STORE_CORRUPT", "dead transition current is not its immutable claim inode");
+  }
+  return {
+    runDirectory: canonicalRun,
+    currentPath: current.currentPath,
+    claimPath: current.claimPath,
+    claim: current.claim,
+    dev: currentStat.dev,
+    ino: currentStat.ino,
+  };
+}
+
+/**
+ * Releases only the exact dead hard-link captured above.  Any owner/token or
+ * inode change fails closed so an old operator command cannot clear a newer
+ * transition owner.
+ */
+export async function releaseDeadRunTransitionForOperator(target: DeadRunTransitionTarget): Promise<void> {
+  unsupported();
+  const canonicalRun = await canonicalDirectory(target.runDirectory);
+  if (canonicalRun !== target.runDirectory) {
+    throw new RunStoreError("RUN_INVALID_INPUT", "operator transition target is not canonical");
+  }
+  let current: RunTransitionLease;
+  try {
+    current = await readCurrent(canonicalRun);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new RunStoreError("RUN_ORPHANED", "operator transition target disappeared before release");
+    }
+    throw error;
+  }
+  if (current.currentPath !== target.currentPath || current.claimPath !== target.claimPath || stableJson(current.claim) !== stableJson(target.claim)) {
+    throw new RunStoreError("RUN_ORPHANED", "operator transition target changed before release");
+  }
+  if (await matchesProcessIdentity(current.claim.owner)) {
+    throw new RunStoreError("RUN_ORPHANED", "run transition owner became live before operator release");
+  }
+  const [currentStat, claimStat] = await Promise.all([
+    lstat(current.currentPath, { bigint: true }),
+    lstat(current.claimPath, { bigint: true }),
+  ]);
+  if (currentStat.dev !== target.dev || currentStat.ino !== target.ino || claimStat.dev !== target.dev || claimStat.ino !== target.ino) {
+    throw new RunStoreError("RUN_ORPHANED", "operator transition inode changed before release");
+  }
+  await rm(current.currentPath);
 }
 
 export async function withRunTransition<T>(runDirectory: string, action: (lease: RunTransitionLease) => Promise<T>): Promise<T> {

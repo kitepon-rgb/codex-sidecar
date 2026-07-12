@@ -51,3 +51,5 @@ export * from "./worktree.js";
 export * from "./worktree-runner.js";
 export { inspectWorkAuthRecovery, recoverWorkAuthSession } from "./work-auth-recovery.js";
 export type { WorkAuthLeaseOwnership, WorkAuthRecoveryInspection } from "./work-auth-recovery.js";
+export { inspectWorkRecovery, recoverWorkRun } from "./work-recovery.js";
+export type { WorkRecoveryInspection, WorkRecoveryOutcome } from "./work-recovery.js";

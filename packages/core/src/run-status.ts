@@ -1,9 +1,12 @@
 import { join } from "node:path";
 import { inspectProcessGroup, type ProcessGroupState } from "./process-group.js";
 import { RunStoreError, stableJson } from "./run-foundation.js";
+import { terminalizeAbandonedPreStartCancellation } from "./run-control.js";
+import { errorResult } from "./results.js";
 import {
   promoteResultToTerminal,
   readRecord,
+  terminalStateForResultRecord,
   type CleanupRecord,
   type ResultRecord,
   type SpawnRecord,
@@ -16,6 +19,12 @@ import type { SidecarRunInterrupted, SidecarRunPending, SidecarRunPollResult, Si
 export interface DurableRunStatusOptions {
   heartbeatStaleMs?: number;
   pollAfterMs?: number;
+  /**
+   * Whether this projection may repair durable terminal state that was
+   * committed incompletely by an earlier worker. Defaults to true for the
+   * regular result API; operator inspection paths must set it to false.
+   */
+  repairDurableState?: boolean;
 }
 
 /**
@@ -35,6 +44,9 @@ export async function inspectStoredWorkRun(
     return terminalResult(run, terminal, result, await readCleanup(run));
   }
   if (result) {
+    if (options.repairDurableState === false) {
+      return terminalFromUnpromotedResult(run, result, await readCleanup(run));
+    }
     try {
       const recovered = await promoteResultToTerminal(run.runDirectory, result.generation, result.token);
       return terminalResult(run, recovered, result, await readCleanup(run));
@@ -57,6 +69,9 @@ export async function inspectStoredWorkRun(
   ]);
 
   if (!spawned) {
+    if (cancellation && options.repairDurableState !== false && await terminalizeAbandonedPreStartCancellation(run, cancelledBeforeSpawnResult(run))) {
+      return inspectStoredWorkRun(run, options);
+    }
     return pending(run, cancellation ? "cancellation-requested" : "launch", cancellation ? "queued" : "starting", pollAfterMs);
   }
 
@@ -72,6 +87,13 @@ export async function inspectStoredWorkRun(
     return pending(run, execution ? "execution" : "auth-queue", execution ? "running" : "queued", pollAfterMs, heartbeat.updatedAt);
   }
   return interruptedForSpawn(run, spawned, "worker heartbeat is stale", pollAfterMs);
+}
+
+function cancelledBeforeSpawnResult(run: StoredRun) {
+  return errorResult(run.manifest.normalizedRequest, {
+    code: "APP_SERVER_CANCELLED",
+    message: "APP_SERVER_CANCELLED: durable work was cancelled before a launcher could start execution",
+  });
 }
 
 async function readResult(run: StoredRun): Promise<ResultRecord | undefined> {
@@ -143,7 +165,7 @@ function terminalFromUnpromotedResult(run: StoredRun, result: ResultRecord, clea
   return {
     kind: "run_terminal",
     runId: run.manifest.runId,
-    state: result.result.status === "failed" || result.result.status === "refused" ? "failed" : "completed",
+    state: terminalStateForResultRecord(result),
     result: result.result,
     cleanup: cleanup?.state ?? (run.manifest.normalizedRequest.preserveWorktree ? "not-requested" : "pending"),
   };

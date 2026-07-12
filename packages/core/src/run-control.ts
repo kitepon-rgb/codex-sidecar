@@ -3,7 +3,8 @@ import { publishRecord, readClaim, readRecord, type ExecutionStartedRecord, type
 import { withRunTransition } from "./run-transition.js";
 import { RunStoreError } from "./run-foundation.js";
 import { stableJson } from "./run-foundation.js";
-import type { SidecarRunCancelAck } from "./types.js";
+import { matchesProcessIdentity } from "./process-identity.js";
+import type { SidecarResult, SidecarRunCancelAck } from "./types.js";
 import type { LaunchClaim, StoredRun } from "./run-types.js";
 
 export type ExecutionStartDecision =
@@ -77,6 +78,49 @@ export async function requestRunCancellation(run: StoredRun): Promise<SidecarRun
     if (existing) return ack(run, true, false, "already_requested", mode);
     await publishRecord(run.runDirectory, "cancel.json", { kind: "cancel", observedGeneration: claim.generation, observedToken: claim.token, createdAt: new Date().toISOString() });
     return ack(run, true, false, "cancellation_requested", mode);
+  });
+}
+
+/**
+ * Safely completes a cancellation only when its launcher is already gone and
+ * no spawn/execution evidence exists.  A permit-without-spawn child cannot
+ * touch the run filesystem, so this turns the otherwise permanent
+ * cancellation-requested state into a durable cancelled terminal without
+ * guessing about a live worker.
+ */
+export async function terminalizeAbandonedPreStartCancellation(
+  run: StoredRun,
+  result: SidecarResult,
+): Promise<boolean> {
+  return withRunTransition(run.runDirectory, async () => {
+    const claim = await currentClaim(run);
+    if (await readRecord(run.runDirectory, "terminal.json") || await readRecord(run.runDirectory, "result.json") ||
+      await readRecord(run.runDirectory, "quarantine.json") || await readRecord(run.runDirectory, "execution-started.json") ||
+      await readRecord(join(run.runDirectory, "launch.lock"), "spawn.json") || !await readRecord(run.runDirectory, "cancel.json")) {
+      return false;
+    }
+    if (await matchesProcessIdentity(claim.owner)) return false;
+    try {
+      await publishRecord(run.runDirectory, "result.json", {
+        kind: "result", generation: claim.generation, token: claim.token, result, terminalState: "cancelled", createdAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      if (!(error instanceof RunStoreError) || error.code !== "RUN_STORE_CORRUPT" || !await readRecord(run.runDirectory, "result.json")) throw error;
+      return false;
+    }
+    const durableResult = await readRecord(run.runDirectory, "result.json");
+    if (!durableResult || durableResult.kind !== "result") {
+      throw new RunStoreError("RUN_STORE_CORRUPT", "cancelled result disappeared before terminal commit");
+    }
+    try {
+      await publishRecord(run.runDirectory, "terminal.json", {
+        kind: "terminal", generation: claim.generation, token: claim.token, state: "cancelled", resultDigest: durableResult.digest, createdAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      const terminal = await readRecord(run.runDirectory, "terminal.json");
+      if (!terminal || terminal.kind !== "terminal" || terminal.resultDigest !== durableResult.digest || terminal.state !== "cancelled") throw error;
+    }
+    return true;
   });
 }
 

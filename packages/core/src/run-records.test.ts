@@ -182,6 +182,18 @@ test("a competing terminal bound to the same result wins without overwrite", asy
   assert.equal(winner.state, "cancelled");
 });
 
+test("a result-bound cancellation state wins when poll promotes before its worker", async (t) => {
+  const dir = await directory(t);
+  const result = { status: "ok", workflow: "work", summary: "late completion", confidence: { level: "high" }, recommendedNextAction: "poll" };
+  await publishRecord(dir, "result.json", {
+    kind: "result", generation: 1, token, result, terminalState: "cancelled", createdAt: "2026-07-12T00:00:00.000Z",
+  });
+
+  const terminal = await promoteResultToTerminal(dir, 1, token);
+  assert.equal(terminal.state, "cancelled");
+  assert.equal(terminal.resultDigest, (await readRecord(dir, "result.json"))?.digest);
+});
+
 test("run-level readers reject digest-valid unknown keys, modes, symlinks, and filename mismatch", async (t) => {
   const dir = await directory(t);
   const body = { version: 1, kind: "terminal", generation: 1, token, state: "completed", resultDigest: "a".repeat(64), createdAt: "2026-07-12T00:00:00.000Z", unexpected: true };

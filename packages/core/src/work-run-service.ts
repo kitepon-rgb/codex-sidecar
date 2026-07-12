@@ -83,6 +83,7 @@ async function commitDryRun(run: StoredRun): Promise<void> {
     generation: run.claim.generation,
     token: run.claim.token,
     result,
+    terminalState: "completed",
     createdAt: new Date().toISOString(),
   });
   await promoteResultToTerminal(run.runDirectory, run.claim.generation, run.claim.token);

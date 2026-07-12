@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { currentProcessIdentity } from "./process-identity.js";
+import { requestRunCancellation } from "./run-control.js";
 import { publishRecord, readRecord } from "./run-records.js";
+import { sha256, stableJson } from "./run-foundation.js";
 import { openOrCreateRun } from "./run-store.js";
 import { inspectStoredWorkRun } from "./run-status.js";
 import type { StoredRun } from "./run-types.js";
@@ -25,6 +27,23 @@ test("durable result is promoted to terminal instead of being downgraded after a
   assert.equal(status.state, "completed");
   assert.equal(status.cleanup, "pending");
   assert.deepEqual(status.result, result);
+  assert.equal((await readRecord(run.runDirectory, "terminal.json"))?.kind, "terminal");
+});
+
+test("poll preserves a cancellation state embedded in a result before terminal commit", async (t) => {
+  const run = await make(t, true);
+  const result = completedResult(run.manifest.normalizedRequest);
+  await publishRecord(run.runDirectory, "cancel.json", {
+    kind: "cancel", observedGeneration: run.claim.generation, observedToken: run.claim.token, createdAt: new Date().toISOString(),
+  });
+  await publishRecord(run.runDirectory, "result.json", {
+    kind: "result", generation: run.claim.generation, token: run.claim.token, result, terminalState: "cancelled", createdAt: new Date().toISOString(),
+  });
+
+  const status = await inspectStoredWorkRun(run);
+  assert.equal(status.kind, "run_terminal");
+  if (status.kind !== "run_terminal") throw new Error("expected terminal result");
+  assert.equal(status.state, "cancelled");
   assert.equal((await readRecord(run.runDirectory, "terminal.json"))?.kind, "terminal");
 });
 
@@ -71,6 +90,52 @@ test("operator quarantine is a terminal interrupted view unless a valid result a
   assert.equal(status.terminal, true);
   assert.equal(status.salvageAllowed, false);
   assert.equal(status.state, "interrupted");
+});
+
+test("a valid late result wins over an already-published quarantine", async (t) => {
+  const run = await make(t, true);
+  await publishRecord(run.runDirectory, "quarantine.json", {
+    kind: "quarantine", generation: run.claim.generation, token: run.claim.token, createdAt: new Date().toISOString(),
+  });
+  const result = completedResult(run.manifest.normalizedRequest);
+  await publishRecord(run.runDirectory, "result.json", {
+    kind: "result", generation: run.claim.generation, token: run.claim.token, result, createdAt: new Date().toISOString(),
+  });
+
+  const status = await inspectStoredWorkRun(run);
+  assert.equal(status.kind, "run_terminal");
+  if (status.kind !== "run_terminal") throw new Error("expected late durable result to win");
+  assert.equal(status.state, "completed");
+  assert.deepEqual(status.result, result);
+});
+
+test("a dead pre-spawn launcher is recovered as cancelled after an accepted pre-start cancellation", async (t) => {
+  const run = await make(t, true);
+  const lock = join(run.runDirectory, "launch.lock");
+  await rm(lock, { recursive: true });
+  await mkdir(lock, { mode: 0o700 });
+  const claimBody = {
+    version: 1 as const,
+    kind: "claim" as const,
+    generation: run.claim.generation,
+    token: run.claim.token,
+    owner: { pid: 999_999, startIdentity: "known-dead-launcher" },
+    createdAt: new Date().toISOString(),
+  };
+  const deadClaim = { ...claimBody, digest: sha256(stableJson(claimBody)) };
+  await publishRecord(lock, "claim.json", deadClaim);
+  await publishRecord(lock, "heartbeat.json", {
+    kind: "heartbeat", generation: deadClaim.generation, token: deadClaim.token, owner: deadClaim.owner, updatedAt: claimBody.createdAt,
+  });
+  const abandoned = { ...run, claim: deadClaim };
+  const cancellation = await requestRunCancellation(abandoned);
+  assert.equal(cancellation.mode, "pre_start_fenced");
+
+  const status = await inspectStoredWorkRun(abandoned);
+  assert.equal(status.kind, "run_terminal");
+  if (status.kind !== "run_terminal") throw new Error("expected recovered cancelled terminal");
+  assert.equal(status.state, "cancelled");
+  assert.equal(status.result.error?.code, "APP_SERVER_CANCELLED");
 });
 
 async function make(t: test.TestContext, preserveWorktree: boolean): Promise<StoredRun> {

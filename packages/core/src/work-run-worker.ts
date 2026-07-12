@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { createDurableAuthSession, type DurableAuthSession } from "./durable-auth-session.js";
 import { beginRunExecutionWithResource } from "./run-control.js";
 import { RunStoreError, stableJson } from "./run-foundation.js";
-import { publishRecord, promoteResultToTerminal, readRecord, type TerminalRecord } from "./run-records.js";
+import { publishRecord, promoteResultToTerminal, readRecord } from "./run-records.js";
 import { errorResult, toSidecarError } from "./results.js";
 import { readStoredRunDirectory } from "./run-store.js";
 import { cleanupWorktreeExecution, executeWorktreeAppServerRequest, type WorktreeExecution } from "./worktree-runner.js";
@@ -134,29 +134,19 @@ async function commitTerminalResult(
   result: SidecarResult,
   requestedState?: "cancelled",
 ): Promise<SidecarRunTerminal> {
+  const terminalState = requestedState ?? (result.status === "failed" || result.status === "refused" ? "failed" : "completed");
   await publishRecord(run.runDirectory, "result.json", {
     kind: "result",
     generation: run.claim.generation,
     token: run.claim.token,
     result,
+    terminalState,
     createdAt: new Date().toISOString(),
   });
   const durableResult = await readRecord(run.runDirectory, "result.json");
   if (!durableResult || durableResult.kind !== "result") throw new RunStoreError("RUN_STORE_CORRUPT", "durable work result disappeared before terminal commit");
-  if (requestedState === "cancelled") {
-    await publishRecord(run.runDirectory, "terminal.json", {
-      kind: "terminal",
-      generation: run.claim.generation,
-      token: run.claim.token,
-      state: "cancelled",
-      resultDigest: durableResult.digest,
-      createdAt: new Date().toISOString(),
-    });
-  } else {
-    await promoteResultToTerminal(run.runDirectory, run.claim.generation, run.claim.token);
-  }
-  const terminal = await readRecord(run.runDirectory, "terminal.json") as TerminalRecord | undefined;
-  if (!terminal || terminal.kind !== "terminal" || terminal.resultDigest !== durableResult.digest) {
+  const terminal = await promoteResultToTerminal(run.runDirectory, run.claim.generation, run.claim.token);
+  if (terminal.resultDigest !== durableResult.digest || terminal.state !== terminalState) {
     throw new RunStoreError("RUN_STORE_CORRUPT", "durable work terminal does not bind its result");
   }
   return {

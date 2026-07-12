@@ -14,7 +14,7 @@ const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
 export interface RecordEnvelope {
   version: 1;
-  kind: "claim" | "heartbeat" | "worker-heartbeat" | "spawn" | "boot" | "ready" | "failure" | "cancel" | "execution-started" | "quarantine" | "result" | "terminal" | "cleanup";
+  kind: "claim" | "heartbeat" | "worker-heartbeat" | "spawn" | "boot" | "ready" | "failure" | "cancel" | "execution-started" | "quarantine" | "operator-recovery" | "result" | "terminal" | "cleanup";
   generation: number;
   token: string;
   digest: string;
@@ -24,7 +24,24 @@ export interface RecordEnvelope {
 export interface CancelRecord { version: 1; kind: "cancel"; observedGeneration: number | null; observedToken: string | null; createdAt: string; digest: string; }
 export interface ExecutionStartedRecord extends RecordEnvelope { kind: "execution-started"; createdAt: string; }
 export interface QuarantineRecord extends RecordEnvelope { kind: "quarantine"; createdAt: string; }
-export interface ResultRecord extends RecordEnvelope { kind: "result"; result: SidecarResult; createdAt: string; }
+export interface OperatorRecoveryRecord extends RecordEnvelope {
+  kind: "operator-recovery";
+  action: "release-dead-transition";
+  transitionToken: string;
+  transitionOwner: ProcessIdentity;
+  createdAt: string;
+}
+export interface ResultRecord extends RecordEnvelope {
+  kind: "result";
+  result: SidecarResult;
+  /**
+   * The durable terminal decision for this exact result. New writers always
+   * set it; absence is accepted only for records written before the field was
+   * introduced and falls back to the legacy result-status projection.
+   */
+  terminalState?: TerminalRecord["state"];
+  createdAt: string;
+}
 export interface TerminalRecord extends RecordEnvelope { kind: "terminal"; state: "completed" | "failed" | "cancelled"; resultDigest: string; createdAt: string; }
 export interface CleanupRecord extends RecordEnvelope { kind: "cleanup"; state: "completed" | "failed" | "not-requested"; createdAt: string; }
 
@@ -194,7 +211,7 @@ async function promoteResultToTerminalUnlocked(runDirectory: string, generation:
   if (!result || result.kind !== "result" || result.generation !== generation || result.token !== token) throw new RunStoreError("RUN_STORE_CORRUPT", "result does not belong to the requested terminal");
   const existing = await readRecord(runDirectory, "terminal.json");
   if (existing) return terminalForResult(existing, result);
-  const state = (result as ResultRecord).result.status === "failed" || (result as ResultRecord).result.status === "refused" ? "failed" : "completed";
+  const state = terminalStateForResultRecord(result as ResultRecord);
   try { await publishRecord(runDirectory, "terminal.json", { kind: "terminal", generation, token, state, resultDigest: result.digest, createdAt: (result as ResultRecord).createdAt }); }
   catch (error) {
     const winner = await readRecord(runDirectory, "terminal.json");
@@ -208,7 +225,16 @@ async function promoteResultToTerminalUnlocked(runDirectory: string, generation:
 
 function terminalForResult(terminal: RecordEnvelope, result: RecordEnvelope): TerminalRecord {
   if (terminal.kind !== "terminal" || terminal.generation !== result.generation || terminal.token !== result.token || terminal.resultDigest !== result.digest) throw new RunStoreError("RUN_STORE_CORRUPT", "terminal does not bind the durable result");
+  const declaredState = (result as ResultRecord).terminalState;
+  if (declaredState !== undefined && terminal.state !== declaredState) {
+    throw new RunStoreError("RUN_STORE_CORRUPT", "terminal state does not match its durable result decision");
+  }
   return terminal as TerminalRecord;
+}
+
+/** Returns the terminal state bound by a new result, or the legacy derivation. */
+export function terminalStateForResultRecord(result: ResultRecord): TerminalRecord["state"] {
+  return result.terminalState ?? (result.result.status === "failed" || result.result.status === "refused" ? "failed" : "completed");
 }
 
 /** Replaces only the heartbeat belonging to the durable current launch claim. */
@@ -263,7 +289,10 @@ function assertRecordSchema(value: unknown, expectedKind?: RecordEnvelope["kind"
     throw new Error("invalid record envelope");
   }
   const keys = schemaKeys(record.kind);
-  const expectedKeys = record.digest === undefined ? keys?.filter((key) => key !== "digest") : keys;
+  const baseExpectedKeys = record.digest === undefined ? keys?.filter((key) => key !== "digest") : keys;
+  const expectedKeys = baseExpectedKeys && record.kind === "result" && "terminalState" in record
+    ? [...baseExpectedKeys, "terminalState"]
+    : baseExpectedKeys;
   if (expectedKeys && !sameKeys(record, expectedKeys)) throw new Error(`invalid ${record.kind} record keys`);
   if (expectedKind && record.kind !== expectedKind) throw new Error(`record kind must be ${expectedKind}`);
   if (record.kind !== "cancel" && (!Number.isSafeInteger(record.generation) || (record.generation as number) < 1 || typeof record.token !== "string" || !TOKEN.test(record.token))) throw new Error("invalid record generation or token");
@@ -274,9 +303,18 @@ function assertRecordSchema(value: unknown, expectedKind?: RecordEnvelope["kind"
   }
   if (record.kind === "failure" && record.reason !== "early-exit" && record.reason !== "ready-timeout" && record.reason !== "ready-invalid" && record.reason !== "spawn-publish-failed") throw new Error("invalid failure reason");
   if (record.kind === "cancel" && (record.observedGeneration !== null && (!Number.isSafeInteger(record.observedGeneration) || (record.observedGeneration as number) < 1) || record.observedToken !== null && (typeof record.observedToken !== "string" || !TOKEN.test(record.observedToken)))) throw new Error("invalid cancel observation");
-  if (record.kind === "result") assertSidecarResult(record.result);
+  if (record.kind === "result") {
+    assertSidecarResult(record.result);
+    if (record.terminalState !== undefined && record.terminalState !== "completed" && record.terminalState !== "failed" && record.terminalState !== "cancelled") {
+      throw new Error("invalid result terminal state");
+    }
+  }
   if (record.kind === "terminal" && (record.state !== "completed" && record.state !== "failed" && record.state !== "cancelled" || typeof record.resultDigest !== "string" || !/^[a-f0-9]{64}$/.test(record.resultDigest))) throw new Error("invalid terminal record");
   if (record.kind === "cleanup" && record.state !== "completed" && record.state !== "failed" && record.state !== "not-requested") throw new Error("invalid cleanup record");
+  if (record.kind === "operator-recovery" &&
+    (record.action !== "release-dead-transition" || typeof record.transitionToken !== "string" || !TOKEN.test(record.transitionToken) || !isProcessIdentity(record.transitionOwner))) {
+    throw new Error("invalid operator recovery record");
+  }
   for (const timestamp of ["createdAt", "updatedAt"]) {
     if (timestamp in record && !isIsoTimestamp(record[timestamp])) throw new Error(`invalid ${timestamp}`);
   }
@@ -295,6 +333,7 @@ function schemaKeys(kind: string): readonly string[] {
     case "cancel": return ["version", "kind", "observedGeneration", "observedToken", "createdAt", "digest"];
     case "execution-started":
     case "quarantine": return [...base, "createdAt"];
+    case "operator-recovery": return [...base, "action", "transitionToken", "transitionOwner", "createdAt"];
     case "result": return [...base, "result", "createdAt"];
     case "terminal": return [...base, "state", "resultDigest", "createdAt"];
     case "cleanup": return [...base, "state", "createdAt"];
@@ -309,6 +348,7 @@ function assertAttemptIdentity(generation: number, token: string): void {
 }
 
 function recordKindForName(name: string): RecordEnvelope["kind"] {
+  if (/^operator-recovery-[A-Za-z0-9_-]{43}\.json$/.test(name)) return "operator-recovery";
   switch (name) {
     case "claim.json": return "claim";
     case "heartbeat.json": return "heartbeat";
@@ -320,6 +360,7 @@ function recordKindForName(name: string): RecordEnvelope["kind"] {
     case "cancel.json": return "cancel";
     case "execution-started.json": return "execution-started";
     case "quarantine.json": return "quarantine";
+    case "operator-recovery.json": return "operator-recovery";
     case "result.json": return "result";
     case "terminal.json": return "terminal";
     case "cleanup.json": return "cleanup";
