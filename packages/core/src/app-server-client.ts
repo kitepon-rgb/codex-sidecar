@@ -525,9 +525,15 @@ function readOptional(path: string): string {
 }
 
 function minimalCodexConfig(source: string): string {
-  const passthrough = source
-    .split(/\r?\n/)
-    .filter((line) => /^(model|model_provider|model_reasoning_effort)\s*=/.test(line.trim()));
+  let inTable = false;
+  const passthrough = source.split(/\r?\n/).filter((line) => {
+    const trimmed = line.trim();
+    if (/^(?:\[\[.*\]\]|\[.*\])(?:\s*#.*)?$/.test(trimmed)) {
+      inTable = true;
+      return false;
+    }
+    return !inTable && /^(?:model|model_provider|model_reasoning_effort|model_context_window|model_auto_compact_token_limit)\s*=/.test(trimmed);
+  });
   return `${passthrough.join("\n")}${passthrough.length > 0 ? "\n" : ""}`;
 }
 

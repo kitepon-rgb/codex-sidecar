@@ -124,7 +124,10 @@ test("createIsolatedCodexHome carries auth but drops MCP config", () => {
       join(source, "config.toml"),
       [
         'model = "gpt-5.5"',
+        'model_provider = "openai"',
         'model_reasoning_effort = "high"',
+        "model_context_window = 272000",
+        "model_auto_compact_token_limit = 240000",
         "[mcp_servers.codegraph]",
         'command = "codegraph"',
       ].join("\n"),
@@ -138,7 +141,14 @@ test("createIsolatedCodexHome carries auth but drops MCP config", () => {
       assert.equal(readFileSync(join(isolated.path, "installation_id"), "utf8"), "install-id");
       assert.equal(
         readFileSync(join(isolated.path, "config.toml"), "utf8"),
-        ['model = "gpt-5.5"', 'model_reasoning_effort = "high"', ""].join("\n"),
+        [
+          'model = "gpt-5.5"',
+          'model_provider = "openai"',
+          'model_reasoning_effort = "high"',
+          "model_context_window = 272000",
+          "model_auto_compact_token_limit = 240000",
+          "",
+        ].join("\n"),
       );
     } finally {
       isolated.cleanup();
