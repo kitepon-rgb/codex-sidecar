@@ -33,7 +33,13 @@ test("work auth inspection binds a held lease to its exact durable run journal",
 test("work auth recovery releases only the exact abandoned work lease", async (t) => {
   const fixture = await createFixture(t); const run = await createRun(fixture.repo);
   await abandonWorkAuth(fixture, run.manifest.runId, run.runDirectory, "work-run");
-  await recoverWorkAuthSession({ projectRoot: fixture.repo, idempotencyKey: key, strategy: WorkAuthRecoveryStrategy.ReleaseNeverStarted, confirmNoRunningProcesses: true }, { baseEnv: { CODEX_HOME: fixture.home }, cacheRoot: fixture.cache });
+  const ack = await recoverWorkAuthSession({ projectRoot: fixture.repo, idempotencyKey: key, strategy: WorkAuthRecoveryStrategy.ReleaseNeverStarted, confirmNoRunningProcesses: true }, { baseEnv: { CODEX_HOME: fixture.home }, cacheRoot: fixture.cache });
+  assert.equal(ack.kind, "work_auth_recovery_ack");
+  assert.equal(ack.outcome, "recovered");
+  assert.equal(ack.runId, run.manifest.runId);
+  assert.equal(ack.strategy, WorkAuthRecoveryStrategy.ReleaseNeverStarted);
+  assert.equal(ack.target.token.length > 0, true);
+  assert.equal(ack.operatorRecoveryRecordPath, join(run.runDirectory, "auth", "operator-recovery.json"));
   const after = await inspectWorkAuthRecovery({ projectRoot: fixture.repo, idempotencyKey: key }, { baseEnv: { CODEX_HOME: fixture.home }, cacheRoot: fixture.cache });
   assert.equal(after.ownership, "available");
   assert.equal(after.auth.state, "available");

@@ -18,13 +18,23 @@ test("dry-run start commits a retrievable terminal result without a worker", asy
   const repo = await repository();
   t.after(() => rm(repo, { recursive: true, force: true }));
   const input = { projectRoot: repo, idempotencyKey: key, prompt: "change README", dryRun: true } as const;
-  const first = await startWorkRun(config(), input);
+  let initialConfigLoads = 0;
+  const first = await startWorkRun(async () => {
+    initialConfigLoads += 1;
+    return config();
+  }, input);
   assert.equal(first.kind, "run_terminal", JSON.stringify(first));
   if (first.kind !== "run_terminal") throw new Error("expected dry-run terminal result");
   assert.equal(first.result.status, "dry-run");
+  assert.equal(initialConfigLoads, 1);
 
-  const retry = await startWorkRun(undefined as unknown as SidecarConfig, input);
+  let retryConfigLoads = 0;
+  const retry = await startWorkRun(async () => {
+    retryConfigLoads += 1;
+    throw new Error("existing run retry must not reload config");
+  }, input);
   assert.equal(retry.kind, "run_terminal");
+  assert.equal(retryConfigLoads, 0);
   const result = await getWorkRunResult({ projectRoot: repo, idempotencyKey: key });
   assert.equal(result.kind, "run_terminal");
 });

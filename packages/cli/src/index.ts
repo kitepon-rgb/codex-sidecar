@@ -3,17 +3,27 @@ import { readFileSync } from "node:fs";
 import { cwd, exit } from "node:process";
 import {
   CONFIG_FILE,
+  SIDECAR_RUN_ERROR_CODES,
   WorkAuthRecoveryStrategy,
   WORKFLOWS,
   buildEcosystemContextBlocks,
+  cancelWorkRun,
+  getWorkRunResult,
+  inspectWorkAuthRecovery,
+  inspectWorkRecovery,
   buildSidecarRequest,
   loadSidecarConfig,
   modelPolicyInfo,
+  recoverWorkAuthSession,
+  recoverWorkRun,
   runSidecarRequest,
+  startWorkRun,
   inspectCurrentDurableAuthRecovery,
   recoverSyncDurableAuthSession,
+  toSidecarError,
   type AuthRecoveryStrategy,
   type ModelReasoningEffort,
+  type SidecarRunErrorCode,
   type SidecarContextBlock,
   type SidecarWorkflow,
 } from "codex-sidecar-core";
@@ -34,11 +44,23 @@ interface CliOptions {
   preserveWorktree: boolean;
   context: SidecarContextBlock[];
   sessionId?: string;
-  authRecoveryStrategy?: AuthRecoveryStrategy;
+  authRecoveryStrategy?: WorkAuthRecoveryStrategy;
   confirmNoRunningProcesses: boolean;
+  idempotencyKey?: string;
+  baseRef?: string;
+  workRecoveryAction?: "quarantine";
 }
 
-type CliCommand = SidecarWorkflow | "diagnostics" | "auth-status" | "auth-recover";
+type CliCommand =
+  | SidecarWorkflow
+  | "diagnostics"
+  | "auth-status"
+  | "auth-recover"
+  | "work-start"
+  | "work-result"
+  | "work-cancel"
+  | "work-recover"
+  | "work-auth-recover";
 
 let parsed: CliOptions;
 try {
@@ -68,17 +90,82 @@ try {
     if (!parsed.confirmNoRunningProcesses) throw new Error("--confirm-no-running-processes is required for auth-recover");
     await recoverSyncDurableAuthSession({
       sessionId: parsed.sessionId,
-      strategy: parsed.authRecoveryStrategy,
+      strategy: parsed.authRecoveryStrategy as AuthRecoveryStrategy,
       confirmNoRunningProcesses: true,
     });
     printJson({ status: "ok", sessionId: parsed.sessionId, strategy: parsed.authRecoveryStrategy });
     exit(0);
   }
 
+  if (parsed.workflow === "work-result") {
+    const result = await getWorkRunResult(workLookup(parsed));
+    printJson(result);
+    exit(runExitCode(result));
+  }
+
+  if (parsed.workflow === "work-cancel") {
+    const result = await cancelWorkRun(workLookup(parsed));
+    printJson(result);
+    exit(runExitCode(result));
+  }
+
+  if (parsed.workflow === "work-recover") {
+    const lookup = workLookup(parsed);
+    if (parsed.workRecoveryAction === "quarantine" && !parsed.confirmNoRunningProcesses) {
+      throw new Error("--confirm-no-running-processes is required for work-recover --action quarantine");
+    }
+    const result = parsed.workRecoveryAction === "quarantine"
+      ? await recoverWorkRun({ ...lookup, action: "quarantine", confirmNoRunningProcesses: true })
+      : await inspectWorkRecovery(lookup);
+    printJson(result);
+    exit(runExitCode(result.status));
+  }
+
+  if (parsed.workflow === "work-auth-recover") {
+    const lookup = workLookup(parsed);
+    if (parsed.authRecoveryStrategy === undefined) {
+      if (parsed.confirmNoRunningProcesses) throw new Error("--strategy is required when --confirm-no-running-processes is set");
+      printJson(await inspectWorkAuthRecovery(lookup));
+      exit(0);
+    }
+    if (!parsed.confirmNoRunningProcesses) throw new Error("--confirm-no-running-processes is required for work-auth-recover");
+    printJson(await recoverWorkAuthSession({
+      ...lookup,
+      strategy: parsed.authRecoveryStrategy,
+      confirmNoRunningProcesses: true,
+    }));
+    exit(0);
+  }
+
+  if (parsed.workflow === "work-start") {
+    const result = await startWorkRun(
+      () => loadSidecarConfig(parsed.projectRoot, parsed.configFile),
+      {
+        projectRoot: parsed.projectRoot,
+        idempotencyKey: requiredIdempotencyKey(parsed),
+        baseRef: parsed.baseRef,
+        prompt: parsed.prompt,
+        preset: parsed.preset,
+        outputContract: parsed.outputContract,
+        model: parsed.model,
+        modelReasoningEffort: parsed.modelReasoningEffort,
+        turnTimeoutMs: parsed.turnTimeoutMs,
+        interruptOnTimeout: parsed.interruptOnTimeout,
+        preserveWorktree: parsed.preserveWorktree,
+        context: parsed.context,
+        dryRun: parsed.dryRun,
+      },
+    );
+    printJson(result);
+    exit(runExitCode(result));
+  }
+
   const config = await loadSidecarConfig(parsed.projectRoot, parsed.configFile);
   const resolvedPreset =
     parsed.preset ??
-    (parsed.workflow && parsed.workflow !== "diagnostics" && config.presets?.[parsed.workflow] ? parsed.workflow : undefined);
+    (isSidecarWorkflow(parsed.workflow) && config.presets?.[parsed.workflow]
+      ? parsed.workflow
+      : undefined);
 
   if (parsed.workflow === "diagnostics") {
     const request = buildSidecarRequest(config, {
@@ -105,6 +192,7 @@ try {
     exit(0);
   }
 
+  if (!isSidecarWorkflow(parsed.workflow)) throw new Error(`Unknown command: ${parsed.workflow}`);
   const result = await runSidecarRequest(config, {
     workflow: parsed.workflow,
     projectRoot: parsed.projectRoot,
@@ -123,6 +211,11 @@ try {
   printJson(result);
   exit(result.status === "failed" || result.status === "refused" ? 1 : 0);
 } catch (error) {
+  if (parsed.workflow && isAsyncWorkCommand(parsed.workflow)) {
+    const result = runOperationError(error);
+    printJson(result);
+    exit(runExitCode(result));
+  }
   printJson({
     status: "failed",
     error: error instanceof Error ? error.message : String(error),
@@ -151,8 +244,8 @@ function parseArgs(args: string[]): CliOptions {
       continue;
     }
 
-    if (arg === "--project") {
-      options.projectRoot = requireValue(args, (index += 1), "--project");
+    if (arg === "--project" || arg === "--project-root") {
+      options.projectRoot = requireValue(args, (index += 1), arg);
       continue;
     }
 
@@ -219,6 +312,23 @@ function parseArgs(args: string[]): CliOptions {
       continue;
     }
 
+    if (arg === "--idempotency-key") {
+      options.idempotencyKey = requireValue(args, (index += 1), "--idempotency-key");
+      continue;
+    }
+
+    if (arg === "--base-ref") {
+      options.baseRef = requireValue(args, (index += 1), "--base-ref");
+      continue;
+    }
+
+    if (arg === "--action") {
+      const action = requireValue(args, (index += 1), "--action");
+      if (action !== "quarantine") throw new Error("--action must be quarantine");
+      options.workRecoveryAction = action;
+      continue;
+    }
+
     if (arg === "--strategy") {
       options.authRecoveryStrategy = parseAuthRecoveryStrategy(
         requireValue(args, (index += 1), "--strategy"),
@@ -248,7 +358,50 @@ function parseArgs(args: string[]): CliOptions {
 }
 
 function isCommand(value: string): value is CliCommand {
-  return value === "diagnostics" || value === "auth-status" || value === "auth-recover" || (WORKFLOWS as readonly string[]).includes(value);
+  return value === "diagnostics" || value === "auth-status" || value === "auth-recover" ||
+    value === "work-start" || value === "work-result" || value === "work-cancel" ||
+    value === "work-recover" || value === "work-auth-recover" ||
+    (WORKFLOWS as readonly string[]).includes(value);
+}
+
+function isSidecarWorkflow(value: CliCommand): value is SidecarWorkflow {
+  return (WORKFLOWS as readonly string[]).includes(value);
+}
+
+function isAsyncWorkCommand(value: CliCommand): value is "work-start" | "work-result" | "work-cancel" | "work-recover" | "work-auth-recover" {
+  return value === "work-start" || value === "work-result" || value === "work-cancel" || value === "work-recover" || value === "work-auth-recover";
+}
+
+function requiredIdempotencyKey(options: CliOptions): string {
+  if (!options.idempotencyKey) throw new Error("--idempotency-key is required");
+  return options.idempotencyKey;
+}
+
+function workLookup(options: CliOptions): { projectRoot: string; idempotencyKey: string } {
+  return { projectRoot: options.projectRoot, idempotencyKey: requiredIdempotencyKey(options) };
+}
+
+function runOperationError(error: unknown) {
+  const sidecar = toSidecarError(error);
+  const code = (SIDECAR_RUN_ERROR_CODES as readonly string[]).includes(sidecar.code)
+    ? sidecar.code as SidecarRunErrorCode
+    : sidecar.code === "CONFIG_INVALID" || sidecar.code === "CONFIG_NOT_FOUND" || sidecar.code === "PRESET_NOT_FOUND" || sidecar.code === "SAFETY_REFUSAL" || sidecar.message.startsWith("--")
+      ? "RUN_INVALID_INPUT"
+      : "RUN_INTERNAL_ERROR";
+  return {
+    kind: "run_error" as const,
+    error: { code, message: sidecar.message },
+    retryable: code !== "RUN_INVALID_INPUT" && code !== "RUN_KEY_CONFLICT" && code !== "RUN_UNSUPPORTED_PLATFORM",
+  };
+}
+
+function runExitCode(value: unknown): number {
+  if (!value || typeof value !== "object" || !("kind" in value)) return 1;
+  const run = value as { kind: string; state?: string; result?: { status?: string }; error?: { code?: string } };
+  if (run.kind === "run_error") return run.error?.code === "RUN_UNSUPPORTED_PLATFORM" ? 2 : 1;
+  if (run.kind === "run_interrupted") return 1;
+  if (run.kind === "run_terminal") return run.state === "failed" ? 1 : 0;
+  return 0;
 }
 
 function requireValue(args: string[], index: number, option: string): string {
@@ -279,16 +432,19 @@ function parseModelReasoningEffort(value: string, option: string): ModelReasonin
   throw new Error(`${option} must be one of: low, medium, high, xhigh`);
 }
 
-function parseAuthRecoveryStrategy(value: string): AuthRecoveryStrategy {
+function parseAuthRecoveryStrategy(value: string): WorkAuthRecoveryStrategy {
   if ((Object.values(WorkAuthRecoveryStrategy) as string[]).includes(value)) {
-    return value as AuthRecoveryStrategy;
+    return value as WorkAuthRecoveryStrategy;
   }
   throw new Error(`--strategy must be one of: ${Object.values(WorkAuthRecoveryStrategy).join(", ")}`);
 }
 
 function printUsage(): void {
-  console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics|auth-status|auth-recover> [options] [prompt]`);
-  console.error("Options: --project <dir> --config <file> --preset <name> --output-contract <text> --output-contract-file <file> --model <model> --model-reasoning-effort <effort> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
+  console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics|auth-status|auth-recover|work-start|work-result|work-cancel|work-recover|work-auth-recover> [options] [prompt]`);
+  console.error("Options: --project <dir> | --project-root <dir> --config <file> --preset <name> --output-contract <text> --output-contract-file <file> --model <model> --model-reasoning-effort <effort> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
+  console.error("Async work: work-start --idempotency-key <key> [--base-ref <ref>]; work-result|work-cancel|work-recover|work-auth-recover --idempotency-key <key>");
+  console.error("Work recovery: work-recover [--action quarantine --confirm-no-running-processes]");
+  console.error("Work auth recovery: work-auth-recover [--strategy <strategy> --confirm-no-running-processes]");
   console.error("Auth recovery: auth-recover --session-id <id> --strategy <write-back-run-local|keep-canonical-after-login|release-never-started|release-clean> --confirm-no-running-processes");
 }
 

@@ -20,11 +20,18 @@ export interface WorkRunStartOptions {
 }
 
 /**
+ * A start caller may defer configuration loading until it wins creation of a
+ * new durable run.  Retrying an existing idempotency key must not depend on
+ * the current config file still being present or valid.
+ */
+export type WorkRunConfigSource = SidecarConfig | (() => Promise<SidecarConfig>);
+
+/**
  * Creates or rediscovers a deterministic async work run. Configuration is
  * normalized only for a new winner; retries use its immutable manifest.
  */
 export async function startWorkRun(
-  config: SidecarConfig,
+  configSource: WorkRunConfigSource,
   input: StartInput,
   options: WorkRunStartOptions = {},
 ): Promise<SidecarRunStartResult> {
@@ -35,7 +42,10 @@ export async function startWorkRun(
     const { projectRoot, idempotencyKey, baseRef, ...rawInput } = input;
     const run = await openOrCreateRun(
       { projectRoot, idempotencyKey, baseRef, rawInput },
-      async () => ({ normalizedRequest: buildSidecarRequest(config, { ...rawInput, workflow: "work", projectRoot }) }),
+      async () => {
+        const config = typeof configSource === "function" ? await configSource() : configSource;
+        return { normalizedRequest: buildSidecarRequest(config, { ...rawInput, workflow: "work", projectRoot }) };
+      },
     );
 
     if (run.manifest.normalizedRequest.dryRun) {

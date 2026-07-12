@@ -14,7 +14,7 @@ import {
   type CodexSidecarMcpHttpServer,
 } from "./server-http.js";
 
-const toolInputSchema = {
+const legacyToolInputSchema = {
   projectRoot: z.string().min(1).describe("Absolute path to the project root containing .codex-sidecar.yml."),
   configFile: z
     .string()
@@ -58,9 +58,38 @@ const toolInputSchema = {
     .describe("Optional sidecar context blocks, such as Caveat caveat_entry blocks."),
 };
 
+const workLookupInputSchema = {
+  projectRoot: legacyToolInputSchema.projectRoot,
+  idempotencyKey: z
+    .string()
+    .min(1)
+    .describe("Caller-held idempotency key used to find the exact durable work run."),
+};
+
+const workStartInputSchema = {
+  ...legacyToolInputSchema,
+  ...workLookupInputSchema,
+  baseRef: z.string().min(1).optional().describe("Optional base ref fixed into the durable work manifest. Defaults to HEAD."),
+};
+
+const workRecoveryInputSchema = {
+  ...workLookupInputSchema,
+  action: z.enum(["quarantine"]).optional().describe("Optional operator mutation. Omit for read-only inspection."),
+  confirmNoRunningProcesses: z.boolean().optional().describe("Required and must be true for action=quarantine."),
+};
+
+const workAuthRecoveryInputSchema = {
+  ...workLookupInputSchema,
+  strategy: z
+    .enum(["write-back-run-local", "keep-canonical-after-login", "release-never-started", "release-clean"])
+    .optional()
+    .describe("Optional explicit auth recovery strategy. Omit for read-only inspection."),
+  confirmNoRunningProcesses: z.boolean().optional().describe("Required and must be true when strategy is supplied."),
+};
+
 export function buildCodexSidecarMcpServer(): McpServer {
   const server = new McpServer(
-    { name: "codex-sidecar", version: "0.3.1" },
+    { name: "codex-sidecar", version: "0.3.3" },
     { capabilities: { tools: {} } },
   );
 
@@ -70,7 +99,7 @@ export function buildCodexSidecarMcpServer(): McpServer {
       {
         title: descriptor.name,
         description: descriptor.description,
-        inputSchema: toolInputSchema,
+        inputSchema: inputSchemaForTool(descriptor.name),
       },
       async (args: unknown) => {
         const result = await handleCodexSidecarToolCall(
@@ -87,6 +116,17 @@ export function buildCodexSidecarMcpServer(): McpServer {
   }
 
   return server;
+}
+
+function inputSchemaForTool(toolName: CodexSidecarToolName) {
+  switch (toolName) {
+    case "codex_work_start": return workStartInputSchema;
+    case "codex_work_result":
+    case "codex_work_cancel": return workLookupInputSchema;
+    case "codex_work_recover": return workRecoveryInputSchema;
+    case "codex_work_auth_recover": return workAuthRecoveryInputSchema;
+    default: return legacyToolInputSchema;
+  }
 }
 
 export async function startCodexSidecarMcpStdioServer(): Promise<void> {
