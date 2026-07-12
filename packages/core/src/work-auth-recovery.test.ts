@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { chmod, mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -43,6 +43,26 @@ test("work auth recovery releases only the exact abandoned work lease", async (t
   const after = await inspectWorkAuthRecovery({ projectRoot: fixture.repo, idempotencyKey: key }, { baseEnv: { CODEX_HOME: fixture.home }, cacheRoot: fixture.cache });
   assert.equal(after.ownership, "available");
   assert.equal(after.auth.state, "available");
+});
+
+test("work auth recovery refuses write-back without started-run rotation evidence", async (t) => {
+  const fixture = await createFixture(t); const run = await createRun(fixture.repo);
+  await abandonWorkAuth(fixture, run.manifest.runId, run.runDirectory, "work-run", true);
+
+  await assert.rejects(
+    () => recoverWorkAuthSession({
+      projectRoot: fixture.repo, idempotencyKey: key,
+      strategy: WorkAuthRecoveryStrategy.WriteBackRunLocal, confirmNoRunningProcesses: true,
+    }, { baseEnv: { CODEX_HOME: fixture.home }, cacheRoot: fixture.cache }),
+    { code: "RUN_AUTH_UNCERTAIN" },
+  );
+  assert.equal(await readFile(join(fixture.home, "auth.json"), "utf8"), '{"refresh":"R0"}\n');
+  const after = await inspectWorkAuthRecovery({ projectRoot: fixture.repo, idempotencyKey: key }, { baseEnv: { CODEX_HOME: fixture.home }, cacheRoot: fixture.cache });
+  assert.equal(after.ownership, "owned-by-run");
+  assert.equal(after.auth.state, "held");
+  if (after.auth.state !== "held") throw new Error("expected held work auth lease");
+  assert.equal(after.auth.appServerStarted, true);
+  assert.equal(after.auth.rotationPresent, false);
 });
 
 test("work auth recovery refuses a lease owned by a different session", async (t) => {
@@ -104,10 +124,11 @@ async function abandonWorkAuth(
   ownerId: string,
   root: string,
   ownerKind: "work-run" | "sync-session",
+  startAppServer = false,
 ): Promise<void> {
   if (ownerKind === "sync-session") { await mkdir(root, { recursive: true, mode: 0o700 }); await chmod(root, 0o700); }
   const module = new URL("./durable-auth-session.js", import.meta.url).pathname;
-  const code = `import {createDurableAuthSession} from ${JSON.stringify(module)}; await createDurableAuthSession({baseEnv:{CODEX_HOME:${JSON.stringify(fixture.home)}},cacheRoot:${JSON.stringify(fixture.cache)},sessionRoot:${JSON.stringify(root)},journalPath:${JSON.stringify(join(root, ownerKind === "work-run" ? "auth" : "journal"))},codexHomePath:${JSON.stringify(join(root, "codex-home"))},ownerKind:${JSON.stringify(ownerKind)},ownerId:${JSON.stringify(ownerId)}});`;
+  const code = `import {createDurableAuthSession} from ${JSON.stringify(module)}; const session=await createDurableAuthSession({baseEnv:{CODEX_HOME:${JSON.stringify(fixture.home)}},cacheRoot:${JSON.stringify(fixture.cache)},sessionRoot:${JSON.stringify(root)},journalPath:${JSON.stringify(join(root, ownerKind === "work-run" ? "auth" : "journal"))},codexHomePath:${JSON.stringify(join(root, "codex-home"))},ownerKind:${JSON.stringify(ownerKind)},ownerId:${JSON.stringify(ownerId)}}); ${startAppServer ? "await session.markAppServerStarted();" : ""}`;
   const child = spawn(process.execPath, ["--input-type=module", "-e", code], { stdio: ["ignore", "ignore", "pipe"] });
   let stderr = "";
   child.stderr.setEncoding("utf8");

@@ -83,6 +83,8 @@ Owns shared behavior:
 - read-only turn completion waiting and assistant text normalization
 - session/event normalization for richer result fields
 - worktree isolation for write operations
+- durable work manifests, run-control records, and recovery projection
+- global canonical-auth lease ownership for durable work
 - result schemas and JSON contract normalization
 - diagnostics and raw event log references
 
@@ -93,6 +95,8 @@ Provides local commands:
 - `codex-sidecar review`
 - `codex-sidecar explore`
 - `codex-sidecar work`
+- `codex-sidecar work-start`, `work-result`, `work-cancel`, `work-recover`, and
+  `work-auth-recover`
 - `codex-sidecar opinion`
 - `codex-sidecar risk-check`
 - `codex-sidecar auditor`
@@ -105,6 +109,14 @@ Throughline, Caveat, SmartClaude, CodeGraph, or any other ecosystem project.
 Read-only workflows call Codex App Server through `core`. Write workflows run
 through isolated git worktrees and return reviewable changed-file metadata
 without touching the active working tree.
+
+Synchronous `work` is retained for direct use. Async work is a separate control
+surface: the caller-held idempotency key identifies a durable run, while start
+and result use a run-control union rather than overloading `SidecarResult` with
+nonterminal states. After launch handoff, the worker is detached from the
+coordinator and durable records live under the repository's git common
+directory. This lets a new CLI/MCP process recover a run after stdio or caller
+loss without treating a transport session as execution ownership.
 
 CLI model flags are request overrides. If omitted, model policy still resolves
 inside `core` from preset/default config, or remains absent so Codex can inherit
@@ -121,6 +133,8 @@ Provides an MCP server for Claude Code:
 - `codex_risk_check`
 - `codex_auditor`
 - `codex_generate`
+- `codex_work_start`, `codex_work_result`, `codex_work_cancel`,
+  `codex_work_recover`, `codex_work_auth_recover`
 
 The MCP layer exposes stable tool schemas and translates calls into the same
 `core` request types used by the CLI. Read-only tools use the shared core
@@ -189,6 +203,16 @@ safe read-only inspection.
 Approval prompts, dangerous operations, and Codex App Server policy decisions
 must remain visible to the user. The sidecar should normalize outputs, not hide
 important control-flow decisions.
+
+Durable work control is fail-closed. Cancel is an explicit durable intent;
+quarantine and auth recovery require operator confirmation. An abnormal worker
+kill does not authorize automatic worktree cleanup, path-policy salvage, or
+patch adoption. The canonical `CODEX_HOME/auth.json` is protected by a global
+lease across projects. If an abnormal started worker has neither clean-shutdown
+evidence nor run-local auth rotation, an operator can release that exact lease
+only after external re-login and explicit `keep-canonical-after-login` recovery.
+A complete clean journal stranded before lease unlink is eligible only for exact
+`release-clean` recovery.
 
 No hidden fallback rule: if a requested source, protocol, transport, or tool path
 fails, return an explicit error. Do not silently substitute another source or

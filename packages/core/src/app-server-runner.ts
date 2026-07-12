@@ -38,6 +38,11 @@ export interface AppServerRunOptions {
   clientFactory?: (options: AppServerClientOptions) => AppServerSessionClient;
 }
 
+/** @internal deterministic seam for the durable auth marker-to-client-start boundary. */
+export const __appServerRunnerTestHooks: {
+  afterAuthMarkerBeforeClientStart?: () => Promise<void>;
+} = {};
+
 export async function runReadOnlyAppServerRequest(
   request: SidecarRequest,
   options: AppServerRunOptions = {},
@@ -80,6 +85,7 @@ export async function runReadOnlyAppServerRequest(
       ownsAuthSession = true;
       await authSession.markAppServerStarted();
     }
+    await __appServerRunnerTestHooks.afterAuthMarkerBeforeClientStart?.();
     client =
       options.client ??
       (options.clientFactory ?? AppServerClient.start)({

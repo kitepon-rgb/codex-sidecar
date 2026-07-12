@@ -263,6 +263,39 @@ codex-sidecar work \
   "Create docs/codex-work-smoke.md with one short smoke-test sentence."
 ```
 
+### Asynchronous Work
+
+The existing synchronous `work` command remains available. For work that must
+outlive a CLI, MCP stdio, or Claude Code process, use the durable controls:
+
+```bash
+codex-sidecar work-start --project /path/to/project --idempotency-key <caller-held-key> \
+  "Implement the scoped change."
+codex-sidecar work-result --project /path/to/project --idempotency-key <caller-held-key>
+codex-sidecar work-cancel --project /path/to/project --idempotency-key <caller-held-key>
+codex-sidecar work-recover --project /path/to/project --idempotency-key <caller-held-key>
+codex-sidecar work-auth-recover --project /path/to/project --idempotency-key <caller-held-key>
+```
+
+`work-start` returns a run-control union: a `run_handle`, `run_terminal`,
+`run_interrupted`, or `run_error`. `work-result` returns `run_pending`,
+`run_terminal`, `run_interrupted`, or `run_error`. Keep the caller-generated
+idempotency key and use it for every retry and control operation; it is the
+recovery identity, not an optional label. A durable worker is detached after a
+successful handoff, so a stdio disconnect or caller restart does not cancel it;
+the same key can be queried later from a new CLI or MCP process.
+
+`work-cancel` records an intent and returns an acknowledgement; read
+`work-result` for the final terminal state. `work-recover --action quarantine`
+and all `work-auth-recover --strategy ...` mutations require
+`--confirm-no-running-processes`. Recovery never silently salvages a patch or
+cleans a worktree. After an abnormal worker kill, inspect first: automatic
+salvage and cleanup are disabled. If that run has no clean-shutdown evidence and
+no run-local auth rotation, it can be released only after an external re-login
+replaces canonical auth, using the explicit `keep-canonical-after-login`
+auth-recovery strategy. A complete clean journal stranded before lease unlink
+uses only the exact `release-clean` strategy.
+
 ### Generate Workflow
 
 `generate` drives Codex App Server to produce arbitrary structured JSON for a
@@ -454,7 +487,8 @@ sudo ufw delete allow from 192.168.1.0/24 to any port 39201 proto tcp
 
 ## MCP Tools
 
-`packages/mcp` exposes seven tool descriptors backed by the same core execution
+`packages/mcp` exposes read-only and synchronous work tools plus durable work
+controls backed by the same core execution
 path as the CLI:
 
 - `codex_review`
@@ -464,6 +498,11 @@ path as the CLI:
 - `codex_risk_check`
 - `codex_auditor`
 - `codex_generate`
+- `codex_work_start`
+- `codex_work_result`
+- `codex_work_cancel`
+- `codex_work_recover`
+- `codex_work_auth_recover`
 
 The MCP server is a stdio process. Clients should launch the `codex-sidecar-mcp`
 command from PATH; the package supports npm-style symlinked bin paths and does
@@ -499,6 +538,14 @@ Common input fields:
 If `allowWork` is omitted or not `true`, the handler returns a structured
 `SAFETY_REFUSAL` result. This is intentional: MCP clients must make
 write-capable sidecar execution visible in their own UI or automation policy.
+
+The async work tools use the same caller-held `idempotencyKey` as the CLI.
+`codex_work_start` returns the run-control union; `codex_work_result` is the
+polling endpoint; and cancel or recovery calls are explicit control operations.
+Closing the stdio MCP client after `codex_work_start` does not cancel a handed-
+off worker. A new stdio or HTTP MCP client can recover the run with the same
+key. Quarantine and auth recovery retain the confirmation and no-auto-salvage
+constraints described in [Asynchronous Work](#asynchronous-work).
 
 MCP call result shape:
 
@@ -557,6 +604,11 @@ Successful `codex_work` result excerpt:
 If Codex changes a denied path, the result is `failed` with
 `error.code = "SAFETY_REFUSAL"` and includes `changedFiles` when available. The
 worktree is preserved by default for inspection.
+
+Durable run records are stored below the repository's git common directory, not
+the active working tree. For `preserveWorktree: false`, cleanup happens only
+after a terminal result is durable. An abnormal worker exit never triggers
+automatic cleanup, path-policy salvage, or patch adoption.
 
 ## Raw App Server Logs
 

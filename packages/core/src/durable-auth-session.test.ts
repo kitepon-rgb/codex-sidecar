@@ -34,6 +34,33 @@ test("all projects sharing canonical CODEX_HOME are serialized", async (t) => {
   await first.closeClean();
 });
 
+test("subprocess kills at durable session entrypoint write-ahead checkpoints require explicit never-started recovery", async (t) => {
+  const boundaries = [
+    { name: "lease claim before lease-acquired evidence", hook: "afterLeaseClaimBeforeLeaseAcquired", leaseEvidence: false, snapshot: false },
+    { name: "lease-acquired evidence before snapshot", hook: "afterLeaseAcquiredBeforeSnapshot", leaseEvidence: true, snapshot: false },
+    { name: "snapshot evidence before App Server started", hook: "afterSnapshotBeforeAppServerStarted", leaseEvidence: true, snapshot: true },
+  ] as const;
+  for (const boundary of boundaries) await t.test(boundary.name, async (t) => {
+    const { home, cache } = await fixture(t);
+    await killSessionAtCheckpoint(home, cache, `killed-${boundary.hook}`, boundary.hook);
+
+    const status = await inspectDurableAuthRecovery({ home, cacheRoot: cache });
+    assert.equal(status.state, "held");
+    if (status.state !== "held") throw new Error("killed session must leave a held lease");
+    assert.equal(status.snapshotPresent, boundary.snapshot);
+    assert.equal(status.appServerStarted, false);
+    assert.deepEqual(status.candidates, ["release-never-started"]);
+    const journal = await readdir(status.journalPath);
+    assert.equal(journal.includes("lease-acquired.json"), boundary.leaseEvidence);
+    assert.equal(journal.includes("snapshot.json"), boundary.snapshot);
+    assert.equal(journal.includes("app-server-started.json"), false);
+    assert.equal(await readFile(join(home, "auth.json"), "utf8"), '{"refresh":"R0"}\n');
+
+    await recoverCurrentDurableAuth({ home, cacheRoot: cache, strategy: "release-never-started", confirmNoRunningProcesses: true });
+    assert.equal((await inspectDurableAuthRecovery({ home, cacheRoot: cache })).state, "available");
+  });
+});
+
 test("external canonical auth change leaves the durable lease held and fails closed", async (t) => {
   const { home, cache } = await fixture(t); const session = await createDurableAuthSession({ baseEnv: { ...process.env, CODEX_HOME: home }, cacheRoot: cache, ownerKind: "sync-session", ownerId: "uncertain" });
   await session.markAppServerStarted(); await writeFile(join(session.codexHome, "auth.json"), '{"refresh":"R1"}\n', { mode: 0o600 }); await writeFile(join(home, "auth.json"), '{"refresh":"external"}\n', { mode: 0o600 });
@@ -174,4 +201,43 @@ async function abandonSession(home: string, cache: string, id: string, mode: "ne
   const code = `import {createDurableAuthSession} from ${JSON.stringify(module)}; import {__authLeaseTestHooks} from ${JSON.stringify(authLease)}; import {writeFile,rename} from 'node:fs/promises'; const session=await createDurableAuthSession({baseEnv:{CODEX_HOME:${JSON.stringify(home)}},cacheRoot:${JSON.stringify(cache)},ownerKind:'sync-session',ownerId:${JSON.stringify(id)}}); ${mode === "never-started" ? "" : "await session.markAppServerStarted();"} ${lifecycle} ${finalizer}`;
   const child = spawn(process.execPath, ["--input-type=module", "-e", code], { stdio: "ignore" });
   await new Promise<void>((resolve, reject) => { child.once("error", reject); child.once("exit", (status) => status === 0 ? resolve() : reject(new Error(`abandoned-session child failed: ${status}`))); });
+}
+
+async function killSessionAtCheckpoint(
+  home: string,
+  cache: string,
+  id: string,
+  hook: "afterLeaseClaimBeforeLeaseAcquired" | "afterLeaseAcquiredBeforeSnapshot" | "afterSnapshotBeforeAppServerStarted",
+): Promise<void> {
+  const module = new URL("./durable-auth-session.js", import.meta.url).pathname;
+  const code = `
+    import { __durableAuthTestHooks, createDurableAuthSession } from ${JSON.stringify(module)};
+    __durableAuthTestHooks[${JSON.stringify(hook)}] = async () => {
+      process.stdout.write("READY\\n");
+      process.kill(process.pid, "SIGSTOP");
+    };
+    await createDurableAuthSession({
+      baseEnv: { CODEX_HOME: ${JSON.stringify(home)} }, cacheRoot: ${JSON.stringify(cache)},
+      ownerKind: "sync-session", ownerId: ${JSON.stringify(id)},
+    });
+  `;
+  const child = spawn(process.execPath, ["--input-type=module", "-e", code], { stdio: ["ignore", "pipe", "pipe"] });
+  let output = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk: string) => { output += chunk; });
+  child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (output.includes("READY\n")) break;
+    if (child.exitCode !== null || child.signalCode !== null) throw new Error(`boundary child exited early: ${child.exitCode ?? child.signalCode}; ${stderr}`);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  if (!output.includes("READY\n")) throw new Error(`boundary child did not become ready: ${stderr}`);
+  child.kill("SIGKILL");
+  await new Promise<void>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", () => resolve());
+  });
 }

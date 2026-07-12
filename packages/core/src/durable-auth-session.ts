@@ -57,6 +57,9 @@ export type DurableAuthRecoveryInspection =
 
 /** @internal fault-injection seam. */
 export const __durableAuthTestHooks: {
+  afterLeaseClaimBeforeLeaseAcquired?: () => Promise<void>;
+  afterLeaseAcquiredBeforeSnapshot?: () => Promise<void>;
+  afterSnapshotBeforeAppServerStarted?: () => Promise<void>;
   beforeBoundWriteBack?: () => Promise<void>;
   beforeAtomicWriteBack?: () => Promise<void>;
 } = {};
@@ -125,7 +128,9 @@ export async function createDurableAuthSession(options: DurableAuthSessionOption
   const owner = { kind: options.ownerKind, id, journalPath, processIdentity: await currentProcessIdentity() };
   const lease = await claimAuthLease({ home: sourceHome, cacheRoot, owner });
   try {
+    await __durableAuthTestHooks.afterLeaseClaimBeforeLeaseAcquired?.();
     await writeEvidence(join(journalPath, "lease-acquired.json"), { version: 1, kind: "auth-lease-acquired", token: lease.token, canonicalAuthPath: lease.canonicalAuthPath, createdAt: new Date().toISOString() });
+    await __durableAuthTestHooks.afterLeaseAcquiredBeforeSnapshot?.();
     const initial = await observeStableAuth(lease.canonicalAuthPath);
     await copyOptional(join(sourceHome, "auth.json"), join(codexHome, "auth.json"));
     await copyOptional(join(sourceHome, "installation_id"), join(codexHome, "installation_id"));
@@ -133,6 +138,7 @@ export async function createDurableAuthSession(options: DurableAuthSessionOption
     const localInitial = await observeStableAuth(join(codexHome, "auth.json"));
     if (localInitial.hash !== initial.hash) throw new RunStoreError("RUN_AUTH_UNCERTAIN", "canonical auth changed while the durable snapshot was copied");
     await writeEvidence(join(journalPath, "snapshot.json"), { version: 1, kind: "auth-snapshot", token: lease.token, canonicalAuthPath: lease.canonicalAuthPath, canonicalInitial: initial, runLocalInitial: localInitial, createdAt: new Date().toISOString() });
+    await __durableAuthTestHooks.afterSnapshotBeforeAppServerStarted?.();
     let started = false; let closed = false;
     const recordRunLocalRotation = async (): Promise<void> => {
       if (!started) throw new RunStoreError("RUN_AUTH_UNCERTAIN", "run-local auth rotation cannot be observed before App Server start");
@@ -415,7 +421,15 @@ async function readSnapshot(path: string, lease: AuthLease): Promise<SnapshotEvi
   return value as unknown as SnapshotEvidence;
 }
 async function readRotation(path: string, lease: AuthLease, snapshot: SnapshotEvidence): Promise<RotationEvidence> {
-  const value = await readEvidence(path);
+  let value: Record<string, unknown>;
+  try {
+    value = await readEvidence(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new RunStoreError("RUN_AUTH_UNCERTAIN", "durable auth rotation evidence is absent");
+    }
+    throw error;
+  }
   if (!sameKeys(value, ["version", "kind", "token", "canonicalAuthPath", "canonicalInitial", "runLocalInitial", "final", "createdAt", "digest"]) || value.version !== 1 || value.kind !== "auth-run-local-rotation" || value.token !== lease.token || value.canonicalAuthPath !== lease.canonicalAuthPath || !isIsoTimestamp(value.createdAt) || !isAuthObservation(value.canonicalInitial) || !isAuthObservation(value.runLocalInitial) || !isAuthObservation(value.final)) throw new RunStoreError("RUN_AUTH_UNCERTAIN", "durable auth rotation evidence is invalid");
   if (stableJson(value.canonicalInitial) !== stableJson(snapshot.canonicalInitial) || stableJson(value.runLocalInitial) !== stableJson(snapshot.runLocalInitial) || value.final.state !== "present" || value.final.hash === snapshot.canonicalInitial.hash || (snapshot.runLocalInitial.state === "present" && value.final.dev === snapshot.runLocalInitial.dev && value.final.ino === snapshot.runLocalInitial.ino)) throw new RunStoreError("RUN_AUTH_UNCERTAIN", "durable auth rotation evidence does not prove an atomic replacement");
   return value as unknown as RotationEvidence;

@@ -251,6 +251,37 @@ returns `changedFiles`, `worktreePath`, and `worktreePreserved` in
 callers can pass `--remove-worktree` to delete the isolated worktree after the
 result is collected.
 
+## Durable Asynchronous Work
+
+The legacy synchronous `work` workflow remains stable. The async CLI controls
+(`work-start`, `work-result`, `work-cancel`, `work-recover`, and
+`work-auth-recover`) and MCP tools (`codex_work_start`, `codex_work_result`,
+`codex_work_cancel`, `codex_work_recover`, and `codex_work_auth_recover`) are a
+separate public contract.
+
+The caller must retain an idempotency key. It identifies the durable run across
+retries and transports; a same-key retry reopens the original run rather than
+creating another one. Start returns `run_handle`, `run_terminal`,
+`run_interrupted`, or `run_error`. Result returns `run_pending`,
+`run_terminal`, `run_interrupted`, or `run_error`. Nonterminal states are not
+encoded as `SidecarResult.status`.
+
+After the coordinator publishes a valid launch handoff, the worker is detached
+from the caller process. Closing stdio or restarting Claude Code therefore does
+not cancel it; a later CLI, stdio MCP, or HTTP MCP caller can query the same key.
+Run records are private durable files beneath the repository's git common
+directory. For non-preserved worktrees, terminal commit precedes cleanup.
+
+Cancellation is an explicit intent, not proof that side effects never began.
+Quarantine and auth recovery are operator actions requiring confirmation. If a
+worker is killed abnormally, the sidecar does not auto-salvage, evaluate a patch,
+or clean its worktree. The global canonical-auth lease remains held until an
+explicit safe recovery. For an abnormal started run with no clean-shutdown
+evidence and no run-local auth rotation, an external re-login followed by
+`keep-canonical-after-login` releases the exact run's lease; it does not adopt
+or write back uncertain credentials. A complete clean journal stranded before
+lease unlink is recoverable only by the exact `release-clean` strategy.
+
 The following are adapter details and may change with App Server versions:
 
 - process startup flags

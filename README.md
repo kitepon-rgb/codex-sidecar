@@ -125,6 +125,18 @@ Workflow-specific fields layer on top of these common fields — `review` adds
 `tests` / `worktreePath`, and so on. See
 [docs/USAGE.md](docs/USAGE.md#structured-result-contract) for the full contract.
 
+### Long-running work
+
+The synchronous `work` workflow remains available for direct use. For work that
+must survive an MCP stdio disconnect or a caller restart, use the asynchronous
+work controls: CLI `work-start`, `work-result`, `work-cancel`, `work-recover`,
+and `work-auth-recover`, or MCP `codex_work_start`, `codex_work_result`,
+`codex_work_cancel`, `codex_work_recover`, and `codex_work_auth_recover`.
+The caller supplies and retains an idempotency key; retrying the same key finds
+the same durable run rather than starting another one. See
+[docs/USAGE.md](docs/USAGE.md#asynchronous-work) for the control contract and
+recovery constraints.
+
 ## Why Not Just Use...
 
 | Approach | What it is good at | Where `codex-sidecar` helps |
