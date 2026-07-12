@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.3.4] — 2026-07-12
+
+### Added
+- `codex-sidecar --version` reads the installed CLI package manifest, prints
+  exactly its semantic version, and exits without loading project config or
+  touching auth/cache state.
+- A subprocess regression test fixes stdout, stderr, exit code, and no-cache
+  behavior for the distributed CLI contract.
+
 ## [0.3.3] — 2026-07-12
 
 ### Added

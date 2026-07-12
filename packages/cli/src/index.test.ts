@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
-import { chmod, lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -8,6 +8,16 @@ import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 const key = "abcdefghijklmnopqrstuv";
+
+test("--version prints the packaged CLI version without config or cache access", async (t) => {
+  const root = await fixture(t);
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+  const result = await runCli(root.home, root.cache, ["--version"]);
+  assert.equal(result.code, 0, result.stdout);
+  assert.equal(result.stdout, `${manifest.version}\n`);
+  assert.equal(result.stderr, "");
+  await assert.rejects(() => lstat(root.cache), { code: "ENOENT" });
+});
 
 test("auth-status is read-only and bypasses project config loading", async (t) => {
   const root = await fixture(t);

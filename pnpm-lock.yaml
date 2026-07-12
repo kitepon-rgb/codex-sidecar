@@ -18,7 +18,7 @@ importers:
   packages/cli:
     dependencies:
       codex-sidecar-core:
-        specifier: workspace:0.3.3
+        specifier: workspace:0.3.4
         version: link:../core
     devDependencies:
       typescript:
@@ -44,7 +44,7 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
       codex-sidecar-core:
-        specifier: workspace:0.3.3
+        specifier: workspace:0.3.4
         version: link:../core
       zod:
         specifier: ^4.4.3

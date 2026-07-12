@@ -17,6 +17,7 @@ Install the CLI globally:
 
 ```bash
 npm install -g codex-sidecar-cli
+codex-sidecar --version
 ```
 
 Install the MCP stdio server globally when a client should launch it by command:
@@ -859,7 +860,7 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
    Corepack over an existing pnpm shim.
 
    ```bash
-   RELEASE_VERSION=0.3.3
+   RELEASE_VERSION=0.3.4
    if command -v corepack >/dev/null; then
      pnpm_release() { corepack pnpm "$@"; }
    else
@@ -905,7 +906,7 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
    ```bash
    git add CHANGELOG.md README.md README.ja.md docs
    git status --short
-   git commit -m "docs: 0.3.3の公開文書を更新する" -- \
+   git commit -m "docs: $RELEASE_VERSIONの公開文書を更新する" -- \
      CHANGELOG.md README.md README.ja.md docs
    test -z "$(git status --porcelain)"
    PUBLISH_SHA=$(git rev-parse HEAD)
@@ -914,7 +915,7 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
    ```
 
 6. Publish only after the inspection passes, in dependency order: core, then
-   CLI, then MCP. After each publish, query the registry for version `0.3.3`
+   CLI, then MCP. After each publish, query the registry for `RELEASE_VERSION`
    (or the release version being published).
 
    ```bash
@@ -954,7 +955,7 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
 
    ```bash
    git add docs
-   git commit -m "docs: 0.3.3公開計画を完了する" -- docs
+   git commit -m "docs: $RELEASE_VERSION公開計画を完了する" -- docs
    git push origin main
    git fetch origin main
    git merge-base --is-ancestor "v$RELEASE_VERSION^{commit}" origin/main

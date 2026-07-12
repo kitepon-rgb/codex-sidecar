@@ -34,6 +34,7 @@ Install the CLI globally:
 
 ```bash
 npm install -g codex-sidecar-cli
+codex-sidecar --version
 ```
 
 Install the MCP stdio server globally when a client wants a command on PATH:

@@ -62,6 +62,19 @@ type CliCommand =
   | "work-recover"
   | "work-auth-recover";
 
+if (process.argv.length === 3 && process.argv[2] === "--version") {
+  try {
+    process.stdout.write(`${readCliVersion()}\n`);
+    exit(0);
+  } catch (error) {
+    printJson({
+      status: "failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+    exit(1);
+  }
+}
+
 let parsed: CliOptions;
 try {
   parsed = parseArgs(process.argv.slice(2));
@@ -355,6 +368,14 @@ function parseArgs(args: string[]): CliOptions {
 
   options.prompt = promptParts.length > 0 ? promptParts.join(" ") : undefined;
   return options;
+}
+
+function readCliVersion(): string {
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as unknown;
+  if (!isRecord(manifest) || typeof manifest.version !== "string" || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(manifest.version)) {
+    throw new Error("CLI package manifest has an invalid version");
+  }
+  return manifest.version;
 }
 
 function isCommand(value: string): value is CliCommand {

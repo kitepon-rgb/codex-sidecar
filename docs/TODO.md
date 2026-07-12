@@ -42,7 +42,7 @@ changes.
 | P0 | Fix npm symlinked `codex-sidecar-mcp` bin startup | Done | 0.3.1 |
 | P0 | Degrade schema-drifted structured reports to `status: "partial"` (salvage completed `codex_work` worktrees) instead of hard-failing | Done | [STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](STRUCTURED_OUTPUT_TOLERANCE_PLAN.md) |
 | P0 | Make long-running `codex_work` survive MCP client restart and expose durable result retrieval | Done | [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md) |
-| P2 | Add a supported `codex-sidecar --version` CLI flag | Planned | [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md#mcp-tasks--progress--version) |
+| P2 | Add a supported `codex-sidecar --version` CLI flag | In Progress | [CLI_VERSION_PLAN.md](CLI_VERSION_PLAN.md) |
 
 ## Local CodeGraph Setup
 

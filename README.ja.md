@@ -30,6 +30,7 @@ workspace を build:
 ```bash
 npm install -g codex-sidecar-cli
 npm install -g codex-sidecar-mcp
+codex-sidecar --version
 ```
 
 `codex-sidecar-mcp` は npm の `bin` として配布されます。global install では
