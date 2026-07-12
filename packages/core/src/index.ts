@@ -1,5 +1,6 @@
 export * from "./types.js";
 export * from "./app-server.js";
+export * from "./auth-lease.js";
 export * from "./app-server-client.js";
 export * from "./app-server-events.js";
 export * from "./app-server-logs.js";
