@@ -1,5 +1,7 @@
 # Structured Output Tolerance Plan
 
+Status: Complete
+
 Canonical plan for making the sidecar's structured-output layer tolerant of the
 model dialect drift that produces `PROTOCOL_ERROR` on otherwise-complete reports.
 This file is the TODO; check items off as they land.
@@ -19,13 +21,13 @@ semantically complete* dialect for `risks[]`:
 | `severity` | `"high"` ✓ | `"blocker"` ✗ | **no** — synonym needs a guessed mapping |
 | `basis` | `"Observed EPERM…"` | `` "`rg…` has no…" `` | **no** — free-text; guessing the enum invents a trust level |
 
-Root cause: [structured-output.ts](../packages/core/src/structured-output.ts)
+Root cause: [structured-output.ts](../../packages/core/src/structured-output.ts)
 `workflowSchema()` lists `risks: Array<{ …confidence, basis }>` by field name only
 and does not restate the nested shapes, so at medium effort the model fills the
 "natural" compact forms. `high` effort re-derives the shapes and passes.
 
 Today the parse failure is caught in
-[app-server-runner.ts](../packages/core/src/app-server-runner.ts) and returned as
+[app-server-runner.ts](../../packages/core/src/app-server-runner.ts) and returned as
 `errorResult` (`status=failed`); `worktree-runner.ts` still merges `changedFiles`
 and `worktreePath`, so the artifact is recoverable — but the run reads as a flat
 failure and every field the model *did* produce is discarded.

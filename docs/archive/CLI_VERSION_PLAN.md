@@ -1,6 +1,6 @@
 # CLI Version Flag Plan
 
-Status: In Progress
+Status: Complete
 
 ## Goal
 
@@ -39,6 +39,18 @@ patch release.
   packaged MCP manifest.
 - [x] Run targeted and full verification gates after the MCP correction.
 - [x] Pack/install smoke the corrected distributed CLI and MCP bins.
-- [ ] Commit, push, confirm CI, and publish lockstep 0.3.4 packages.
-- [ ] Create and verify tag/GitHub release `v0.3.4`.
-- [ ] Mark complete and archive this plan.
+- [x] Commit, push, confirm CI, and publish lockstep 0.3.4 packages.
+- [x] Create and verify tag/GitHub release `v0.3.4`.
+- [x] Mark complete and archive this plan.
+
+## Completion Evidence
+
+- Release commit: `44548ecb943fe08adeb1e2d96c57a2a693052ed9`.
+- CI run `29196993545`: typecheck, test, and build passed.
+- npm registry: `codex-sidecar-core`, `codex-sidecar-cli`, and
+  `codex-sidecar-mcp` are published at `0.3.4`.
+- Fresh registry install and global install both reported CLI `0.3.4` and MCP
+  `serverInfo.version=0.3.4`.
+- Docker image `codex-sidecar:0.3.4` passed an HTTP initialize smoke with MCP
+  `serverInfo.version=0.3.4`.
+- Annotated tag and GitHub Release `v0.3.4` resolve to the release commit.

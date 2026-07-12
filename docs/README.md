@@ -9,7 +9,6 @@ This directory keeps the current operating docs for `codex-sidecar`.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, isolated configuration, and result contract.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary, schema-partial behavior, and stable sidecar contracts.
 - [TODO.md](TODO.md): durable task list and linked GitHub issues.
-- [CLI_VERSION_PLAN.md](CLI_VERSION_PLAN.md): active `--version` implementation and 0.3.4 release checklist.
 
 ## Decisions
 
@@ -25,3 +24,5 @@ the docs above and the implementation before making changes.
 - [archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md): completed durable detached execution and result recovery plan for long-running `codex_work` calls.
 - [archive/CODEX_MODEL_POLICY_TODO.md](archive/CODEX_MODEL_POLICY_TODO.md): completed explicit Codex model policy plan and Caveat rollout record.
 - [archive/RELEASE_0_3_3_PLAN.md](archive/RELEASE_0_3_3_PLAN.md): completed 0.3.3 publication and Docker verification record.
+- [archive/STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](archive/STRUCTURED_OUTPUT_TOLERANCE_PLAN.md): completed schema-drift tolerance and partial-result plan.
+- [archive/CLI_VERSION_PLAN.md](archive/CLI_VERSION_PLAN.md): completed CLI/MCP version contract and 0.3.4 release record.

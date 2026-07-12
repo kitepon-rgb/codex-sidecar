@@ -737,7 +737,7 @@ drifts from the schema. Instead of discarding a completed turn, the sidecar:
 Un-coercible drift is never guessed: a synonym `severity` or a free-text `basis`
 is surfaced as a violation, not invented. A non-JSON turn or a missing core stays
 a hard `PROTOCOL_ERROR` (`status: "failed"`) — there is no prose fallback. See
-[STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](STRUCTURED_OUTPUT_TOLERANCE_PLAN.md).
+[STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](archive/STRUCTURED_OUTPUT_TOLERANCE_PLAN.md).
 
 Finding example:
 

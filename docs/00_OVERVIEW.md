@@ -10,6 +10,9 @@ constraints and schema-partial preservation. It also documents GPT-5.6
 long-task settings propagated into the isolated `CODEX_HOME` without copying
 MCP/server or provider tables.
 
+The completed 0.3.4 CLI/MCP version contract and release record is archived at
+[CLI_VERSION_PLAN.md](archive/CLI_VERSION_PLAN.md).
+
 ## Current Canonical Docs
 
 - [../README.md](../README.md): human-facing overview, install examples, and repository layout.
@@ -19,7 +22,6 @@ MCP/server or provider tables.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and dependency direction.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server boundary, stable contracts, structured output, and transport notes.
 - [TODO.md](TODO.md): durable project task list and external coordination.
-- [CLI_VERSION_PLAN.md](CLI_VERSION_PLAN.md): active CLI version flag and 0.3.4 release checklist.
 - [adr/](adr/): architecture decision records. No ADR entries are filed yet.
 
 ## Layout Standard Status

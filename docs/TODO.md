@@ -14,6 +14,10 @@ No repository-local P0 is currently marked Planned.
 The completed 0.3.3 publication and Docker verification record is archived at
 [RELEASE_0_3_3_PLAN.md](archive/RELEASE_0_3_3_PLAN.md).
 
+The completed 0.3.4 CLI/MCP version contract, publication, Docker smoke, and
+global installation record is archived at
+[CLI_VERSION_PLAN.md](archive/CLI_VERSION_PLAN.md).
+
 The 0.3.3 release record also covers explicit kill/auth recovery constraints,
 schema-partial preservation for completed worktrees, and isolated `CODEX_HOME`
 inheritance of the GPT-5.6 long-task context settings. MCP/server and provider
@@ -40,9 +44,9 @@ changes.
 | P2 | Add ecosystem adapters and fixture snapshots | Done | [#6](https://github.com/kitepon-rgb/codex-sidecar/issues/6) |
 | P0 | Add explicit Codex model policy for sidecar presets | Done | [CODEX_MODEL_POLICY_TODO.md](archive/CODEX_MODEL_POLICY_TODO.md) |
 | P0 | Fix npm symlinked `codex-sidecar-mcp` bin startup | Done | 0.3.1 |
-| P0 | Degrade schema-drifted structured reports to `status: "partial"` (salvage completed `codex_work` worktrees) instead of hard-failing | Done | [STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](STRUCTURED_OUTPUT_TOLERANCE_PLAN.md) |
+| P0 | Degrade schema-drifted structured reports to `status: "partial"` (salvage completed `codex_work` worktrees) instead of hard-failing | Done | [STRUCTURED_OUTPUT_TOLERANCE_PLAN.md](archive/STRUCTURED_OUTPUT_TOLERANCE_PLAN.md) |
 | P0 | Make long-running `codex_work` survive MCP client restart and expose durable result retrieval | Done | [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md) |
-| P2 | Add a supported `codex-sidecar --version` CLI flag | In Progress | [CLI_VERSION_PLAN.md](CLI_VERSION_PLAN.md) |
+| P2 | Add a supported `codex-sidecar --version` CLI flag | Done | [CLI_VERSION_PLAN.md](archive/CLI_VERSION_PLAN.md) |
 
 ## Local CodeGraph Setup
 
