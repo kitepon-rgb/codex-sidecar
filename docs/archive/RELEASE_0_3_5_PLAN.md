@@ -1,6 +1,6 @@
 # 0.3.5 Release Plan
 
-Status: In Progress
+Status: Complete
 
 ## Goal
 
@@ -83,12 +83,12 @@ threshold overrides as the aligned `codex-sidecar-core`,
 - [x] Align package versions, workspace dependencies, changelog, and release
   documentation at 0.3.5.
 - [x] Inspect package dry-runs and packed tarball manifests.
-- [ ] Commit with explicit pathspecs, push `main`, and require green GitHub CI.
-- [ ] Publish core, CLI, and MCP 0.3.5 in dependency order and verify registry
+- [x] Commit with explicit pathspecs, push `main`, and require green GitHub CI.
+- [x] Publish core, CLI, and MCP 0.3.5 in dependency order and verify registry
   availability.
-- [ ] Build and smoke the Docker image and update the local global install.
-- [ ] Create and verify the `v0.3.5` tag and GitHub Release.
-- [ ] Record completion evidence, archive this plan, and push the bookkeeping
+- [x] Build and smoke the Docker image and update the local global install.
+- [x] Create and verify the `v0.3.5` tag and GitHub Release.
+- [x] Record completion evidence, archive this plan, and push the bookkeeping
   commit.
 
 ## Completion Evidence
@@ -102,5 +102,24 @@ threshold overrides as the aligned `codex-sidecar-core`,
 - Final packed manifests report 0.3.5 for all packages and registry-safe
   `codex-sidecar-core: 0.3.5` dependencies for CLI and MCP. SHA-256 digests are
   recorded in the release session before publication.
-- Publication, registry, Docker, install, tag, and GitHub evidence remain
-  pending.
+- Publication commit: `4f67a304906f9cd78009838d88ab043d4eede96f`.
+- GitHub Actions run `29201233109` completed successfully for the publication
+  commit with Node 22 typecheck, test, and build gates.
+- npm reports 0.3.5 for `codex-sidecar-core`, `codex-sidecar-cli`, and
+  `codex-sidecar-mcp`. Registry SHA-1 values are
+  `01db1777d9c2d1d67f78828be08cbaecd383a144`,
+  `e57dbdf1466f4c872ffe3a1b43287ee895e21d64`, and
+  `15010f266ce3fa02f5354520669d5c37108d348f`, respectively.
+- The core publish succeeded before its version became visible through
+  `npm view`; the release stopped before CLI/MCP publication, waited for the
+  same registry to expose core 0.3.5, then resumed in dependency order. All
+  three packages ended aligned at 0.3.5.
+- A fresh registry install reported CLI 0.3.5 and MCP
+  `serverInfo.version=0.3.5`. The host-global core, CLI, and MCP installations
+  were updated from 0.3.4 to 0.3.5 and passed the same version smokes.
+- Docker image `codex-sidecar:0.3.5` built as image
+  `327e7c7112ed` and passed a temporary HTTP initialize smoke with MCP
+  `serverInfo.version=0.3.5`; the temporary container was removed and no
+  persistent host was changed.
+- Annotated tag and GitHub Release `v0.3.5` resolve to the publication commit:
+  <https://github.com/kitepon-rgb/codex-sidecar/releases/tag/v0.3.5>.
