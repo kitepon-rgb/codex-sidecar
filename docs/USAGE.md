@@ -933,27 +933,31 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
    docker build -t codex-sidecar:"$RELEASE_VERSION" .
    ```
 
-8. Record any final release evidence (for example, complete and archive an
-   execution checklist) in a final commit, then bind `RELEASE_SHA`. Create the
-   tag and GitHub release only after that commit is pushed and the registry
-   versions are verified. Resolve the local tag and remote `main` back to the
-   same commit, and verify that the GitHub release names that tag.
+8. Create the tag and GitHub release at the exact verified publication commit
+   after the registry versions are available. Resolve the local tag back to that
+   commit and verify that the GitHub release names the tag.
 
    ```bash
-   git add docs
-   git commit -m "docs: 0.3.3公開計画を完了する" -- docs
-   test -z "$(git status --porcelain)"
-   RELEASE_SHA=$(git rev-parse HEAD)
-   git push origin main
-   test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$RELEASE_SHA"
+   RELEASE_SHA=$PUBLISH_SHA
    git tag -a "v$RELEASE_VERSION" "$RELEASE_SHA" -m "codex-sidecar v$RELEASE_VERSION"
    git push origin "v$RELEASE_VERSION"
    gh release create "v$RELEASE_VERSION" --target "$RELEASE_SHA" \
      --title "codex-sidecar v$RELEASE_VERSION" --generate-notes
    git fetch origin "refs/tags/v$RELEASE_VERSION:refs/tags/v$RELEASE_VERSION"
    test "$(git rev-parse "v$RELEASE_VERSION^{commit}")" = "$RELEASE_SHA"
-   test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
    test "$(gh release view "v$RELEASE_VERSION" --json tagName --jq .tagName)" = "v$RELEASE_VERSION"
+   ```
+
+9. Record final release evidence, complete and archive an execution checklist,
+   and push that bookkeeping commit. It is valid for `main` to advance after a
+   release tag; verify that the immutable release commit remains its ancestor.
+
+   ```bash
+   git add docs
+   git commit -m "docs: 0.3.3公開計画を完了する" -- docs
+   git push origin main
+   git fetch origin main
+   git merge-base --is-ancestor "v$RELEASE_VERSION^{commit}" origin/main
    ```
 
 ## Verification Commands

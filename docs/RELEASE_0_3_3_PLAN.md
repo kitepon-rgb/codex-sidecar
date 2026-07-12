@@ -55,7 +55,9 @@ evidence.
   target.
 - npm registry reports 0.3.3 for all three packages and a fresh installed smoke
   lists the expected MCP tools.
-- `origin/main`, tag `v0.3.3`, and the GitHub release resolve to the same commit.
+- Tag `v0.3.3` and the GitHub release resolve to the verified publication
+  commit. Any post-release archive commit on `origin/main` retains that tagged
+  commit as an ancestor.
 
 ## Rollback
 
@@ -77,9 +79,9 @@ evidence.
 - [x] Run the full post-change verification gate.
 - [x] Inspect package tarballs, build the Docker image, and smoke its HTTP
   initialize endpoint.
-- [ ] Commit the documentation/release record with explicit pathspecs.
-- [ ] Push the pre-publication `main` commit and confirm CI.
-- [ ] Publish core, CLI, and MCP 0.3.3 and run installed-package smoke tests.
-- [ ] Mark this plan complete, archive it, and push the final release-record
+- [x] Commit the documentation/release record with explicit pathspecs.
+- [x] Push the pre-publication `main` commit and confirm CI.
+- [x] Publish core, CLI, and MCP 0.3.3 and run installed-package smoke tests.
+- [ ] Create and verify tag/release `v0.3.3` at the verified publication
   commit.
-- [ ] Create and verify tag/release `v0.3.3` at the final `origin/main` commit.
+- [ ] Mark this plan complete, archive it, and push the post-release record.
