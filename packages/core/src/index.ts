@@ -14,6 +14,8 @@ export * from "./requests.js";
 export * from "./results.js";
 export * from "./run-store.js";
 export * from "./run-types.js";
+export * from "./process-identity.js";
+export * from "./run-records.js";
 export * from "./safety.js";
 export * from "./structured-output.js";
 export * from "./worktree.js";

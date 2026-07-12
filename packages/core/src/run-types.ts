@@ -1,5 +1,6 @@
 import type { RequestInput } from "./presets.js";
 import type { SidecarRequest } from "./types.js";
+import type { ProcessIdentity } from "./process-identity.js";
 
 /**
  * The caller-controlled part of a work start request.  It deliberately does
@@ -48,4 +49,7 @@ export interface StoredRun {
   runDirectory: string;
   manifest: SidecarRunManifest;
   created: boolean;
+  claim: LaunchClaim;
 }
+
+export interface LaunchClaim { version: 1; kind: "claim"; generation: number; token: string; owner: ProcessIdentity; createdAt: string; digest: string; }

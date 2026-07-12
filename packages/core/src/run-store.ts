@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, realpath, rename, rm } from "node:fs/promises";
@@ -6,20 +6,16 @@ import { basename, dirname, join } from "node:path";
 import { DEFAULT_TURN_TIMEOUT_MS, WORKFLOWS, type ResultFormat, type SafetyProfileName, type SidecarContextBlock, type SidecarRequest } from "./types.js";
 import { promisify } from "node:util";
 import type { NewRunSnapshot, RunStartInput, SidecarRunManifest, StoredRun } from "./run-types.js";
+import { currentProcessIdentity } from "./process-identity.js";
+import type { LaunchClaim } from "./run-types.js";
+import { publishRecord, readClaim as readLaunchClaim } from "./run-records.js";
+import { RunStoreError, sha256, stableJson } from "./run-foundation.js";
+
+export { RunStoreError, sha256, stableJson } from "./run-foundation.js";
 
 const execFileAsync = promisify(execFile);
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
-
-export class RunStoreError extends Error {
-  constructor(
-    readonly code: "RUN_KEY_CONFLICT" | "RUN_STORE_CORRUPT" | "RUN_INVALID_INPUT" | "RUN_INTERNAL_ERROR",
-    message: string,
-  ) {
-    super(`${code}: ${message}`);
-    this.name = "RunStoreError";
-  }
-}
 
 /**
  * Opens a deterministic run. `prepareNewRun` is intentionally deferred until no
@@ -44,7 +40,7 @@ export async function openOrCreateRun(
   const existing = await readExisting(runDirectory);
   if (existing) {
     assertMatchingExisting(existing, runDirectory, runId, projectStoreIdentity, sha256(input.idempotencyKey), rawInputDigest);
-    return { storeRoot, runDirectory, manifest: existing, created: false };
+    return { storeRoot, runDirectory, manifest: existing, created: false, claim: await readClaim(runDirectory) };
   }
 
   const snapshot = await prepareNewRun();
@@ -75,37 +71,32 @@ export async function openOrCreateRun(
   const tempDirectory = join(storeRoot, `.tmp-${runId}-${randomBytes(12).toString("hex")}`);
   try {
     await ensureDirectory(tempDirectory);
+    const claimBody = { version: 1 as const, kind: "claim" as const, generation: 1, token: randomBytes(32).toString("base64url"), owner: await currentProcessIdentity(), createdAt: new Date().toISOString() };
+    const claim: LaunchClaim = { ...claimBody, digest: sha256(stableJson(claimBody)) };
+    await ensureDirectory(join(tempDirectory, "launch.lock"));
+    await publishRecord(join(tempDirectory, "launch.lock"), "claim.json", claim);
+    await publishRecord(join(tempDirectory, "launch.lock"), "heartbeat.json", {
+      kind: "heartbeat", generation: claim.generation, token: claim.token, owner: claim.owner, updatedAt: claim.createdAt,
+    });
     await writePrivateFile(join(tempDirectory, "manifest.json"), `${JSON.stringify(manifest)}\n`);
     try {
       await rename(tempDirectory, runDirectory);
-      return { storeRoot, runDirectory, manifest, created: true };
+      return { storeRoot, runDirectory, manifest, created: true, claim };
     } catch (error) {
       if (!(await exists(runDirectory))) {
         throw error;
       }
       const winner = await readManifest(runDirectory);
       assertMatchingExisting(winner, runDirectory, runId, projectStoreIdentity, sha256(input.idempotencyKey), rawInputDigest);
-      return { storeRoot, runDirectory, manifest: winner, created: false };
+      return { storeRoot, runDirectory, manifest: winner, created: false, claim: await readClaim(runDirectory) };
     }
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });
   }
 }
 
-export function stableJson(value: unknown): string {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new RunStoreError("RUN_INVALID_INPUT", "raw input must be JSON-serializable");
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (typeof value !== "object") throw new RunStoreError("RUN_INVALID_INPUT", "raw input must be JSON-serializable");
-  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
-  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`).join(",")}}`;
-}
-
-export function sha256(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
+async function readClaim(runDirectory: string): Promise<LaunchClaim> {
+  return readLaunchClaim(join(runDirectory, "launch.lock"));
 }
 
 function canonicalRawInput(rawInput: RunStartInput["rawInput"], callerWorktreePath: string, baseRef: string): Record<string, unknown> {
@@ -211,6 +202,7 @@ async function writePrivateFile(path: string, value: string): Promise<void> {
   try {
     await handle.writeFile(value, { encoding: "utf8" });
     await handle.chmod(FILE_MODE);
+    await handle.sync();
   } finally {
     await handle.close();
   }

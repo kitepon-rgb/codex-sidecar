@@ -22,6 +22,7 @@ test("same key retry reopens the winner without normalization or HEAD resolution
   assert.equal(retry.created, false);
   assert.equal(retry.manifest.runId, first.manifest.runId);
   assert.equal(retry.manifest.baseCommit, first.manifest.baseCommit);
+  assert.deepEqual(retry.claim, first.claim);
   assert.equal(await readFile(join(first.runDirectory, "manifest.json"), "utf8").then((value) => value.includes(key)), false);
   assert.equal("idempotencyKey" in retry.manifest.normalizedRequest, false);
 });
@@ -57,6 +58,7 @@ test("parallel starts elect one manifest winner", async (t) => {
     prepare: async () => { normalized += 1; return snapshot(repo); },
   })));
   assert.equal(new Set(runs.map((run) => run.manifest.runId)).size, 1);
+  assert.equal(new Set(runs.map((run) => run.claim.token)).size, 1);
   assert.equal(runs.filter((run) => run.created).length, 1);
   assert.ok(normalized >= 1);
 });
@@ -77,7 +79,11 @@ test("store directories and manifests are private and active tree stays unchange
   assert.equal((await stat(join(stored.storeRoot, ".."))).mode & 0o777, 0o700);
   assert.equal((await stat(stored.storeRoot)).mode & 0o777, 0o700);
   assert.equal((await stat(stored.runDirectory)).mode & 0o777, 0o700);
+  assert.equal((await stat(join(stored.runDirectory, "launch.lock"))).mode & 0o777, 0o700);
   assert.equal((await stat(join(stored.runDirectory, "manifest.json"))).mode & 0o777, 0o600);
+  assert.equal((await stat(join(stored.runDirectory, "launch.lock", "claim.json"))).mode & 0o777, 0o600);
+  assert.equal((await stat(join(stored.runDirectory, "launch.lock", "heartbeat.json"))).mode & 0o777, 0o600);
+  await assert.rejects(() => stat(join(stored.runDirectory, "records")), { code: "ENOENT" });
   assert.equal((await git(repo, ["status", "--porcelain=v1"])).trim(), "");
 });
 
