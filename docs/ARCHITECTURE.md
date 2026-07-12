@@ -123,10 +123,10 @@ inside `core` from preset/default config, or remains absent so Codex can inherit
 its own isolated configuration.
 
 The isolated `CODEX_HOME` carries only permitted top-level model configuration
-from the user-global `$CODEX_HOME/config.toml`: `model`, `model_provider`,
-`model_reasoning_effort`, `model_context_window`, and
-`model_auto_compact_token_limit`. This preserves GPT-5.6 long-task settings
-while deliberately excluding all TOML tables. Trusted project
+from the user-global `$CODEX_HOME/config.toml`: `model`, `model_provider`, and
+`model_reasoning_effort`. Context-window and auto-compaction threshold overrides
+are deliberately not copied, so Codex uses its defaults unless a trusted project
+configuration applies. All TOML tables are excluded. Trusted project
 `.codex/config.toml` is not copied; Codex loads it from the thread working
 directory, which is the isolated worktree for async work.
 

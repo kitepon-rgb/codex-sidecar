@@ -23,7 +23,7 @@ test("owned group shutdown reaches descendants in the same detached group", { sk
   t.after(() => rm(directory, { recursive: true, force: true }));
   const process = child(`import {spawn} from 'node:child_process'; import {writeFileSync} from 'node:fs'; const descendant=spawn(process.execPath,['--input-type=module','-e',\"process.on('SIGTERM',()=>{});setInterval(()=>{},1000)\"],{stdio:'ignore'}); writeFileSync(${JSON.stringify(pidPath)},String(descendant.pid)); process.on('SIGTERM',()=>process.exit(0)); setInterval(()=>{},1000)`); t.after(() => { try { process.kill("SIGKILL"); } catch {} });
   const owned = await ownProcessGroup(process); await settle();
-  const descendantPid = Number.parseInt(await readFile(pidPath, "utf8"), 10);
+  const descendantPid = await waitForPid(pidPath);
   const descendantIdentity = { pid: descendantPid, startIdentity: await processStartIdentity(descendantPid) };
   const result = await stopOwnedProcessGroup(owned, 500);
   assert.equal(result.termSent, true); assert.equal((await inspectProcessGroup(owned.identity, owned.processGroupId)).state, "stopped");
@@ -66,7 +66,10 @@ test("signal-terminated leader does not hide a surviving descendant in the owned
 async function waitForPid(path: string): Promise<number> {
   const deadline = Date.now() + 2_000;
   while (Date.now() < deadline) {
-    try { return Number.parseInt(await readFile(path, "utf8"), 10); }
+    try {
+      const pid = Number.parseInt(await readFile(path, "utf8"), 10);
+      if (Number.isSafeInteger(pid) && pid > 0) return pid;
+    }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }

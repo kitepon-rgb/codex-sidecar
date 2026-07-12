@@ -4,13 +4,15 @@
 reviews, codebase exploration, risk checks, structured generation, and scoped
 work inside isolated git worktrees.
 
-The 0.3.3 release line adds durable asynchronous `codex_work` control and
+The 0.3.5 patch release keeps durable asynchronous `codex_work` control and
 result recovery after caller disconnects, with explicit auth/kill recovery
-constraints and schema-partial preservation. It also documents GPT-5.6
-long-task settings propagated into the isolated `CODEX_HOME` without copying
-MCP/server or provider tables.
+constraints and schema-partial preservation. The isolated `CODEX_HOME` still
+inherits permitted model, provider, and reasoning-effort settings, but no
+longer inherits caller context-window or auto-compaction threshold overrides.
 
-The completed 0.3.4 CLI/MCP version contract and release record is archived at
+The active 0.3.5 patch-release plan is
+[RELEASE_0_3_5_PLAN.md](RELEASE_0_3_5_PLAN.md). The completed 0.3.4 CLI/MCP
+version contract and release record is archived at
 [CLI_VERSION_PLAN.md](archive/CLI_VERSION_PLAN.md).
 
 ## Current Canonical Docs

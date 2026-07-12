@@ -123,16 +123,9 @@ CLI は `work-start` / `work-result` / `work-cancel` / `work-recover` /
 
 ### GPT-5.6 長時間タスク設定
 
-GPT-5.6 で長い context が必要なタスクは、user global config または trusted
-project の `.codex/config.toml` に次を設定します:
-
-```toml
-model_context_window = 272000
-model_auto_compact_token_limit = 240000
-```
-
-user global 側については、sidecar がこの 2 key と許可された top-level model key
-だけを隔離 `CODEX_HOME` へ allowlist copy し、TOML table はコピーしません。
+sidecar は user global の context window / auto compaction 閾値 override を隔離
+`CODEX_HOME` へコピーしません。そのため、trusted project の `.codex/config.toml`
+に明示的な override がない限り、Codex の調整済み default が適用されます。
 trusted project override は隔離 home へコピーせず、Codex が thread の working
 directory から読みます。非同期 work では isolated worktree に含まれるよう、override
 を run の base commit に入れておく必要があります。App Server 起動時は inherited

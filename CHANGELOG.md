@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.3.5] — 2026-07-13
+
+### Fixed
+- Isolated sidecar `CODEX_HOME` no longer inherits context-window or
+  auto-compaction threshold overrides from the caller environment.
+- Removed the repository-local override; updated documentation and regression
+  tests for the isolated configuration contract.
+
 ## [0.3.4] — 2026-07-12
 
 ### Added

@@ -348,7 +348,7 @@ test("owned read-only App Server calls use and release a durable isolated auth s
   await mkdir(home, { mode: 0o700 }); await mkdir(cache, { mode: 0o700 }); await mkdir(logs, { mode: 0o700 });
   await chmod(home, 0o700); await chmod(cache, 0o700);
   await writeFile(join(home, "auth.json"), '{"refresh":"canonical"}\n', { mode: 0o600 });
-  await writeFile(join(home, "config.toml"), 'model_context_window = 272000\nmodel_auto_compact_token_limit = 240000\n[mcp_servers.forbidden]\ncommand="x"\n', { mode: 0o600 });
+  await writeFile(join(home, "config.toml"), 'model = "gpt-5.6"\nmodel_context_window = 272000\nmodel_auto_compact_token_limit = 240000\n[mcp_servers.forbidden]\ncommand="x"\n', { mode: 0o600 });
   const assistantJson = JSON.stringify({ summary: "durable", confidence: { level: "high" }, recommendedNextAction: "none", openQuestions: [], fileReferences: [], sourceBoundaries: [] });
   const client = new FakeAppServerClient([
     { kind: "notification", method: "item/agentMessage/delta", params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: assistantJson } },
@@ -364,7 +364,8 @@ test("owned read-only App Server calls use and release a durable isolated auth s
   assert.equal(result.status, "ok"); assert.equal(client.closed, true);
   assert.ok(factoryOptions?.env?.CODEX_HOME); assert.notEqual(factoryOptions?.env?.CODEX_HOME, await realpath(home));
   const isolatedConfig = await readFile(join(factoryOptions!.env!.CODEX_HOME!, "config.toml"), "utf8");
-  assert.match(isolatedConfig, /model_context_window = 272000/); assert.doesNotMatch(isolatedConfig, /mcp_servers/);
+  assert.match(isolatedConfig, /model = "gpt-5\.6"/);
+  assert.doesNotMatch(isolatedConfig, /model_context_window|model_auto_compact_token_limit|mcp_servers/);
   const next = await createDurableAuthSession({ baseEnv: { ...process.env, CODEX_HOME: await realpath(home) }, cacheRoot: await realpath(cache), ownerKind: "sync-session", ownerId: "after-runner" });
   await next.closeClean();
 });

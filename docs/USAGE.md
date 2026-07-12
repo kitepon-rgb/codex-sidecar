@@ -147,22 +147,15 @@ By default, `codex-sidecar` does not choose a model. The isolated `CODEX_HOME`
 keeps inherited Codex model settings, while MCP servers and plugins are still
 cleared for sidecar isolation.
 
-For GPT-5.6 long-running tasks, put the following in the user-global Codex
-config or in a trusted project's `.codex/config.toml`:
-
-```toml
-model_context_window = 272000
-model_auto_compact_token_limit = 240000
-```
-
 From the user-global `$CODEX_HOME/config.toml`, the sidecar allowlist-copies
-these two keys and the permitted top-level model keys (`model`,
-`model_provider`, and `model_reasoning_effort`) into its isolated home. It
-copies no TOML tables. A trusted project override follows a separate path: it
-is not copied into the isolated home, and Codex discovers it from the thread
-working directory. For asynchronous work, commit that override in the run's
-base revision so it exists in the isolated worktree. App Server startup still
-clears inherited MCP servers and plugins.
+only the permitted top-level model keys (`model`, `model_provider`, and
+`model_reasoning_effort`) into its isolated home. Context-window and
+auto-compaction threshold overrides are not copied, allowing Codex's tuned
+defaults to apply. It copies no TOML tables. A trusted project override follows
+a separate path: it is not copied into the isolated home, and Codex discovers
+it from the thread working directory. For asynchronous work, commit that
+override in the run's base revision so it exists in the isolated worktree. App
+Server startup still clears inherited MCP servers and plugins.
 
 Set model policy only when the caller wants an explicit Codex App Server
 override. Resolution order is CLI/MCP input, then preset, then `defaults`:
@@ -860,7 +853,11 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
    Corepack over an existing pnpm shim.
 
    ```bash
-   RELEASE_VERSION=0.3.4
+   set -euo pipefail
+   RELEASE_VERSION=$(node -p 'require("./package.json").version')
+   for manifest in packages/core/package.json packages/cli/package.json packages/mcp/package.json; do
+     test "$(node -p "require('./$manifest').version")" = "$RELEASE_VERSION"
+   done
    if command -v corepack >/dev/null; then
      pnpm_release() { corepack pnpm "$@"; }
    else
@@ -869,6 +866,12 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
      pnpm_release() { "$PNPM_BIN" "$@"; }
    fi
    test "$(pnpm_release --version)" = "10.10.0"
+   for package in codex-sidecar-core codex-sidecar-cli codex-sidecar-mcp; do
+     if npm view "$package@$RELEASE_VERSION" version >/dev/null 2>&1; then
+       echo "$package@$RELEASE_VERSION is already published" >&2
+       exit 1
+     fi
+   done
    ```
 
 3. Run the repository gates. These are the direct expansion of the root scripts
@@ -904,19 +907,36 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
    publishing immutable npm versions.
 
    ```bash
-   git add CHANGELOG.md README.md README.ja.md docs
+   git add -A -- .codex CHANGELOG.md README.md README.ja.md docs package.json \
+     pnpm-lock.yaml packages
    git status --short
-   git commit -m "docs: $RELEASE_VERSIONの公開文書を更新する" -- \
-     CHANGELOG.md README.md README.ja.md docs
+   git diff --cached --check
+   git commit -m "release: $RELEASE_VERSIONを公開する" -- \
+     .codex CHANGELOG.md README.md README.ja.md docs package.json \
+     pnpm-lock.yaml packages
    test -z "$(git status --porcelain)"
    PUBLISH_SHA=$(git rev-parse HEAD)
    git push origin main
    test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$PUBLISH_SHA"
+   CI_RUN_ID=""
+   for attempt in $(seq 1 30); do
+     CI_RUN_ID=$(gh run list --workflow CI --branch main --commit "$PUBLISH_SHA" \
+       --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+     test -n "$CI_RUN_ID" && break
+     sleep 2
+   done
+   test -n "$CI_RUN_ID"
+   gh run watch "$CI_RUN_ID" --exit-status
+   test "$(gh run view "$CI_RUN_ID" --json headSha,conclusion \
+     --jq '.headSha + " " + .conclusion')" = "$PUBLISH_SHA success"
    ```
 
 6. Publish only after the inspection passes, in dependency order: core, then
    CLI, then MCP. After each publish, query the registry for `RELEASE_VERSION`
-   (or the release version being published).
+   (or the release version being published). Stop immediately on any failure.
+   If only some packages publish, do not unpublish or continue through another
+   route: record the partial state and publish all three packages at the same
+   higher corrective patch version.
 
    ```bash
    npm publish "$PACK_DIR"/codex-sidecar-core-"$RELEASE_VERSION".tgz
@@ -928,13 +948,56 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
    ```
 
 7. Build and smoke the Docker image as a verification step. Do not deploy it to
-   a persistent host when no deployment target has been specified.
+   a persistent host when no deployment target has been specified. The smoke
+   uses a temporary container, an ephemeral host port, and an explicit `Host`
+   header accepted by the DNS-rebinding policy.
 
    ```bash
    docker build -t codex-sidecar:"$RELEASE_VERSION" .
+   SMOKE_NAME="codex-sidecar-release-$RELEASE_VERSION"
+   trap 'docker rm -f "$SMOKE_NAME" >/dev/null 2>&1 || true' EXIT
+   docker run -d --name "$SMOKE_NAME" -p 127.0.0.1::39201 \
+     -e CODEX_SIDECAR_MCP_ALLOWED_HOSTS=127.0.0.1 \
+     codex-sidecar:"$RELEASE_VERSION"
+   SMOKE_PORT=$(docker port "$SMOKE_NAME" 39201/tcp | awk -F: 'NR==1 {print $NF}')
+   SMOKE_RESPONSE=""
+   for attempt in $(seq 1 30); do
+     SMOKE_RESPONSE=$(curl -fsS -X POST "http://127.0.0.1:$SMOKE_PORT/mcp" \
+       -H 'host: 127.0.0.1' \
+       -H 'content-type: application/json' \
+       -H 'accept: application/json, text/event-stream' \
+       --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"release-smoke","version":"0"},"capabilities":{}}}' \
+       2>/dev/null) && break
+     sleep 1
+   done
+   printf '%s' "$SMOKE_RESPONSE" | grep -F "\"version\":\"$RELEASE_VERSION\""
+   docker rm -f "$SMOKE_NAME"
+   trap - EXIT
    ```
 
-8. Create the tag and GitHub release at the exact verified publication commit
+8. Verify a fresh registry install, then update this host's global CLI/MCP
+   installation. Both CLI and MCP must report the release version.
+
+   ```bash
+   INSTALL_DIR=$(mktemp -d)
+   npm install --prefix "$INSTALL_DIR" \
+     "codex-sidecar-core@$RELEASE_VERSION" \
+     "codex-sidecar-cli@$RELEASE_VERSION" \
+     "codex-sidecar-mcp@$RELEASE_VERSION"
+   test "$("$INSTALL_DIR/node_modules/.bin/codex-sidecar" --version)" = "$RELEASE_VERSION"
+   MCP_INIT='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"release-smoke","version":"0"},"capabilities":{}}}'
+   printf '%s\n' "$MCP_INIT" | "$INSTALL_DIR/node_modules/.bin/codex-sidecar-mcp" \
+     | grep -F "\"version\":\"$RELEASE_VERSION\""
+   rm -rf "$INSTALL_DIR"
+   npm install -g "codex-sidecar-core@$RELEASE_VERSION" \
+     "codex-sidecar-cli@$RELEASE_VERSION" \
+     "codex-sidecar-mcp@$RELEASE_VERSION"
+   test "$(codex-sidecar --version)" = "$RELEASE_VERSION"
+   printf '%s\n' "$MCP_INIT" | codex-sidecar-mcp \
+     | grep -F "\"version\":\"$RELEASE_VERSION\""
+   ```
+
+9. Create the tag and GitHub release at the exact verified publication commit
    after the registry versions are available. Resolve the local tag back to that
    commit and verify that the GitHub release names the tag.
 
@@ -949,7 +1012,7 @@ steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
    test "$(gh release view "v$RELEASE_VERSION" --json tagName --jq .tagName)" = "v$RELEASE_VERSION"
    ```
 
-9. Record final release evidence, complete and archive an execution checklist,
+10. Record final release evidence, complete and archive an execution checklist,
    and push that bookkeeping commit. It is valid for `main` to advance after a
    release tag; verify that the immutable release commit remains its ancestor.
 

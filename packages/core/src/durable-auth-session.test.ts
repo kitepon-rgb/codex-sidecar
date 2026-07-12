@@ -20,7 +20,9 @@ test("durable session holds the global lease and commits rotated auth before cle
   const { home, cache } = await fixture(t);
   const session = await createDurableAuthSession({ baseEnv: { ...process.env, CODEX_HOME: home }, cacheRoot: cache, ownerKind: "sync-session", ownerId: "session-a" });
   assert.equal((await inspectAuthLease({ home, cacheRoot: cache, owner: { ...session.lease.owner, processIdentity: await currentProcessIdentity() } })).state, "held");
-  const config = await readFile(join(session.codexHome, "config.toml"), "utf8"); assert.match(config, /model_context_window = 272000/); assert.doesNotMatch(config, /mcp_servers/);
+  const config = await readFile(join(session.codexHome, "config.toml"), "utf8");
+  assert.match(config, /model = "gpt-5\.6"/);
+  assert.doesNotMatch(config, /model_context_window|model_auto_compact_token_limit|mcp_servers/);
   await session.markAppServerStarted(); const rotated = join(session.codexHome, "auth.rotated"); await writeFile(rotated, '{"refresh":"R1"}\n', { mode: 0o600 }); await rename(rotated, join(session.codexHome, "auth.json")); await session.closeClean();
   assert.equal(await readFile(join(home, "auth.json"), "utf8"), '{"refresh":"R1"}\n');
   assert.equal((await inspectAuthLease({ home, cacheRoot: cache, owner: session.lease.owner })).state, "available");

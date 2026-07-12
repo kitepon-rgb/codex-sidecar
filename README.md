@@ -140,20 +140,13 @@ recovery constraints.
 
 ### GPT-5.6 long-task settings
 
-For GPT-5.6 tasks that need a long context, set the following Codex settings in
-the user-global config or in a trusted project's `.codex/config.toml`:
-
-```toml
-model_context_window = 272000
-model_auto_compact_token_limit = 240000
-```
-
-For the user-global path, sidecar allowlist-copies these two keys and the other
-permitted top-level model keys into its isolated `CODEX_HOME`; it copies no TOML
-tables. A trusted project override is not copied into that home: Codex discovers
-it from the thread working directory. For asynchronous work, the override must
-therefore be present in the run's base commit so the isolated worktree contains
-it. App Server startup still clears inherited MCP servers and plugins.
+Sidecar does not copy user-global context-window or auto-compaction threshold
+overrides into its isolated `CODEX_HOME`. Codex's tuned defaults therefore apply
+unless a trusted project's `.codex/config.toml` provides an explicit override.
+That project override is not copied into the isolated home: Codex discovers it
+from the thread working directory. For asynchronous work, the override must be
+present in the run's base commit so the isolated worktree contains it. App
+Server startup still clears inherited MCP servers and plugins.
 
 ## Why Not Just Use...
 
