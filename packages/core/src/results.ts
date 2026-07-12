@@ -1,4 +1,4 @@
-import type { Confidence, ModelPolicyInfo, SidecarError, SidecarRequest, SidecarResult } from "./types.js";
+import { SIDECAR_RUN_ERROR_CODES, type Confidence, type ModelPolicyInfo, type SidecarError, type SidecarRequest, type SidecarResult } from "./types.js";
 
 export const UNKNOWN_CONFIDENCE: Confidence = {
   level: "unknown",
@@ -56,7 +56,12 @@ export function modelPolicyInfo(request: SidecarRequest): ModelPolicyInfo {
 
 export function toSidecarError(error: unknown): SidecarError {
   const message = error instanceof Error ? error.message : String(error);
-  const code = message.startsWith("CONFIG_INVALID:")
+  const suppliedCode = error && typeof error === "object" && "code" in error && typeof error.code === "string"
+    ? error.code
+    : undefined;
+  const code = isSidecarErrorCode(suppliedCode)
+    ? suppliedCode
+    : message.startsWith("CONFIG_INVALID:")
     ? "CONFIG_INVALID"
     : message.startsWith("CONFIG_NOT_FOUND:")
       ? "CONFIG_NOT_FOUND"
@@ -76,4 +81,18 @@ export function toSidecarError(error: unknown): SidecarError {
     code,
     message,
   };
+}
+
+function isSidecarErrorCode(code: string | undefined): code is SidecarError["code"] {
+  return code === "CONFIG_INVALID" ||
+    code === "CONFIG_NOT_FOUND" ||
+    code === "PRESET_NOT_FOUND" ||
+    code === "SAFETY_REFUSAL" ||
+    code === "APP_SERVER_UNIMPLEMENTED" ||
+    code === "APP_SERVER_TIMEOUT" ||
+    code === "APP_SERVER_CANCELLED" ||
+    code === "AUTH_LEASE_BUSY" ||
+    code === "PROTOCOL_ERROR" ||
+    code === "WORKTREE_ERROR" ||
+    SIDECAR_RUN_ERROR_CODES.some((runCode) => runCode === code);
 }

@@ -12,6 +12,8 @@ export * from "./presets.js";
 export * from "./profiles.js";
 export * from "./requests.js";
 export * from "./results.js";
+export * from "./run-store.js";
+export * from "./run-types.js";
 export * from "./safety.js";
 export * from "./structured-output.js";
 export * from "./worktree.js";

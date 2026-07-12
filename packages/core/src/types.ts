@@ -114,11 +114,102 @@ export interface SidecarError {
     | "APP_SERVER_UNIMPLEMENTED"
     | "APP_SERVER_TIMEOUT"
     | "APP_SERVER_CANCELLED"
+    | "AUTH_LEASE_BUSY"
     | "PROTOCOL_ERROR"
-    | "WORKTREE_ERROR";
+    | "WORKTREE_ERROR"
+    | SidecarRunErrorCode;
   message: string;
   data?: Record<string, unknown>;
 }
+
+export type SidecarRunErrorCode =
+  | "RUN_NOT_FOUND"
+  | "RUN_KEY_CONFLICT"
+  | "RUN_STORE_CORRUPT"
+  | "RUN_READY_TIMEOUT"
+  | "RUN_ORPHANED"
+  | "RUN_AUTH_UNCERTAIN"
+  | "RUN_UNSUPPORTED_PLATFORM"
+  | "RUN_INVALID_INPUT"
+  | "RUN_INTERNAL_ERROR";
+
+export const SIDECAR_RUN_ERROR_CODES = [
+  "RUN_NOT_FOUND",
+  "RUN_KEY_CONFLICT",
+  "RUN_STORE_CORRUPT",
+  "RUN_READY_TIMEOUT",
+  "RUN_ORPHANED",
+  "RUN_AUTH_UNCERTAIN",
+  "RUN_UNSUPPORTED_PLATFORM",
+  "RUN_INVALID_INPUT",
+  "RUN_INTERNAL_ERROR",
+] as const satisfies readonly SidecarRunErrorCode[];
+
+export interface SidecarRunFailure extends SidecarError {
+  code: SidecarRunErrorCode;
+}
+
+export interface SidecarRunHandle {
+  kind: "run_handle";
+  workflow: "work";
+  runId: string;
+  state: "starting" | "queued" | "running";
+  createdAt: string;
+  pollAfterMs: number;
+}
+
+export interface SidecarRunTerminal {
+  kind: "run_terminal";
+  runId: string;
+  state: "completed" | "failed" | "cancelled";
+  result: SidecarResult;
+  cleanup: "not-requested" | "pending" | "completed" | "failed";
+}
+
+export interface SidecarRunInterrupted {
+  kind: "run_interrupted";
+  runId: string;
+  state: "interrupted" | "orphaned";
+  error: SidecarRunFailure;
+  worktreePath?: string;
+  processGroup: "stopped" | "alive" | "unknown";
+  salvageAllowed: false;
+  terminal: boolean;
+  pollAfterMs?: number;
+}
+
+export interface SidecarRunPending {
+  kind: "run_pending";
+  runId: string;
+  state: "starting" | "queued" | "running";
+  phase: string;
+  heartbeatAt?: string;
+  worktreePath?: string;
+  pollAfterMs: number;
+}
+
+export interface SidecarRunOperationError {
+  kind: "run_error";
+  runId?: string;
+  error: SidecarRunFailure;
+  retryable: boolean;
+}
+
+export interface SidecarRunCancelAck {
+  kind: "run_cancel_ack";
+  runId: string;
+  accepted: boolean;
+  terminal: boolean;
+  state: "cancellation_requested" | "already_requested" | "already_terminal";
+  mode: "pre_start_fenced" | "cooperative" | "terminal";
+  pollAfterMs: number;
+}
+
+export type SidecarRunStartResult = SidecarRunHandle | SidecarRunTerminal | SidecarRunInterrupted | SidecarRunOperationError;
+
+export type SidecarRunPollResult = SidecarRunPending | SidecarRunTerminal | SidecarRunInterrupted | SidecarRunOperationError;
+
+export type SidecarRunCancelResult = SidecarRunCancelAck | SidecarRunOperationError;
 
 export interface SidecarResult {
   /**
