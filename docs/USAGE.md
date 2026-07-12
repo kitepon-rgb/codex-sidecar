@@ -104,12 +104,18 @@ presets:
     prompt: "Implement a small scoped change within allowed_paths."
 ```
 
-Use `diagnostics` before the first real run. It resolves presets, safety
-profile deny patterns, path policies, model policy, timeouts, and worktree
-settings without calling Codex:
+Use `diagnostics` before the first real run to inspect the resolved request and
+model policy. This command retains its established compatibility contract.
+
+Use `factory-diagnostics` for a privacy-bounded native factory readiness report.
+It evaluates the native factory
+without calling Codex: all three package versions, the dry-run result contract,
+read-only workflows and configured presets, plus the resolved model-policy
+source. Its JSON intentionally excludes prompts, context, file contents,
+absolute paths, environment values, tokens, and raw logs:
 
 ```bash
-codex-sidecar diagnostics \
+codex-sidecar factory-diagnostics \
   --project /path/to/project \
   --preset review
 ```
@@ -119,27 +125,27 @@ Example diagnostic output shape:
 ```json
 {
   "status": "ok",
-  "configFile": ".codex-sidecar.yml",
-  "projectRoot": "/path/to/project",
-  "normalizedRequest": {
-    "workflow": "review",
-    "projectRoot": "/path/to/project",
-    "readonly": true,
-    "requireWorktree": false,
-    "allowedPaths": ["src/", "docs/", "tests/"],
-    "denyPaths": [".env", ".env.*", "**/*.key", "**/*.pem"],
-    "safetyProfile": "generic",
-    "resultFormat": "json",
-    "turnTimeoutMs": 600000,
-    "interruptOnTimeout": true,
-    "preserveWorktree": true,
-    "dryRun": true
-  },
-  "modelPolicy": {
-    "source": "inherited"
+  "factoryReadiness": {
+    "schemaVersion": "1",
+    "overall": "ready",
+    "packageVersions": {
+      "status": "ready",
+      "packages": { "cli": "0.3.5", "core": "0.3.5", "mcp": "0.3.5" }
+    },
+    "resultSchema": { "status": "ready" },
+    "workflows": { "status": "ready", "entries": { "work": { "status": "not_applicable" } } },
+    "presets": { "status": "not_applicable", "configured": 0, "ready": 0, "notReady": 0, "notApplicable": 0 },
+    "modelPolicy": { "status": "ready", "source": "inherited", "modelConfigured": false, "modelReasoningEffortConfigured": false },
+    "readOnlyDryRun": { "status": "ready", "workflow": "review" }
   }
 }
 ```
+
+Each check is `ready`, `not_ready`, `not_applicable`, or `unverified`.
+`overall` is `ready` only when all applicable checks are ready. A missing
+package manifest or indeterminate check is `unverified`; detected inconsistency
+is `not_ready` and exits non-zero. `work` is deliberately `not_applicable` to
+the read-only readiness check.
 
 ## Model Policy
 
@@ -191,7 +197,7 @@ is resolved, those flags are omitted.
 The CLI shape is:
 
 ```bash
-codex-sidecar <review|explore|work|opinion|risk-check|auditor|generate|diagnostics> [options] [prompt]
+codex-sidecar <review|explore|work|opinion|risk-check|auditor|generate|diagnostics|factory-diagnostics> [options] [prompt]
 ```
 
 The local development equivalent is:

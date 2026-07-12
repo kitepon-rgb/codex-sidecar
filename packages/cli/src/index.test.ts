@@ -36,6 +36,121 @@ test("auth-recover rejects unknown strategy and missing confirmation before muta
   await assert.rejects(() => lstat(root.cache), { code: "ENOENT" });
 });
 
+test("diagnostics preserves the normalized request compatibility contract", async (t) => {
+  const root = await workFixture(t);
+  const result = await runCli(root.home, root.cache, ["diagnostics", "--project", root.repo]);
+  assert.equal(result.code, 0, result.stdout);
+  const payload = JSON.parse(result.stdout) as {
+    status: string;
+    configFile: string;
+    projectRoot: string;
+    normalizedRequest: { workflow: string; projectRoot: string; dryRun: boolean };
+    modelPolicy: { source: string };
+  };
+  assert.equal(payload.status, "ok");
+  assert.equal(payload.configFile, ".codex-sidecar.yml");
+  assert.equal(payload.projectRoot, root.repo);
+  assert.equal(payload.normalizedRequest.workflow, "review");
+  assert.equal(payload.normalizedRequest.projectRoot, root.repo);
+  assert.equal(payload.normalizedRequest.dryRun, true);
+  assert.equal(payload.modelPolicy.source, "inherited");
+  assert.equal("factoryReadiness" in payload, false);
+});
+
+test("factory-diagnostics returns native readiness without exposing request or filesystem data", async (t) => {
+  const root = await workFixture(t);
+  const bin = join(root.root, "bin");
+  await mkdir(bin);
+  const mcp = join(bin, "codex-sidecar-mcp");
+  await writeFile(mcp, `#!/bin/sh
+read request
+printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-sidecar","version":"0.3.5"}}}'
+`);
+  await chmod(mcp, 0o755);
+  const context = join(root.repo, "context.json");
+  await writeFile(join(root.repo, ".codex-sidecar.yml"), [
+    "project: cli-test",
+    "defaults:",
+    "  model: gpt-test-model",
+    "presets:",
+    "  review:",
+    "    workflow: review",
+    "    readonly: true",
+    "    prompt: native-factory-private-prompt",
+  ].join("\n"));
+  await writeFile(context, JSON.stringify([{ kind: "manual_note", source: "test", trust: "local", summary: "native-factory-private-context" }]));
+
+  const result = await runCli(root.home, root.cache, [
+    "factory-diagnostics", "--project", root.repo, "--preset", "review", "--context-file", context,
+  ], { PATH: `${bin}:${process.env.PATH}` });
+
+  assert.equal(result.code, 0, result.stdout);
+  const payload = JSON.parse(result.stdout) as {
+    status: string;
+    factoryReadiness: {
+      schemaVersion: string;
+      overall: string;
+      packageVersions: { status: string; packages: Record<string, string> };
+      resultSchema: { status: string };
+      workflows: { status: string; entries: Record<string, { status: string }> };
+      presets: { status: string; configured: number; ready: number; notReady: number; notApplicable: number };
+      modelPolicy: { status: string; source: string; modelConfigured: boolean };
+      readOnlyDryRun: { status: string; workflow: string };
+    };
+  };
+  assert.equal(payload.status, "ok");
+  assert.deepEqual(payload.factoryReadiness, {
+    schemaVersion: "1",
+    overall: "ready",
+    packageVersions: {
+      status: "ready",
+      packages: {
+        cli: "0.3.5",
+        core: "0.3.5",
+        mcp: "0.3.5",
+      },
+    },
+    resultSchema: { status: "ready" },
+    workflows: {
+      status: "ready",
+      entries: {
+        review: { status: "ready" },
+        explore: { status: "ready" },
+        work: { status: "not_applicable" },
+        opinion: { status: "ready" },
+        "risk-check": { status: "ready" },
+        auditor: { status: "ready" },
+        generate: { status: "ready" },
+      },
+    },
+    presets: {
+      status: "ready",
+      configured: 1,
+      ready: 1,
+      notReady: 0,
+      notApplicable: 0,
+    },
+    modelPolicy: { status: "ready", source: "explicit", modelConfigured: true, modelReasoningEffortConfigured: false },
+    readOnlyDryRun: { status: "ready", workflow: "review" },
+  });
+  assert.equal("normalizedRequest" in payload, false);
+  assert.doesNotMatch(result.stdout, new RegExp(root.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(result.stdout, /native-factory-private-(prompt|context)/);
+});
+
+test("factory-diagnostics reports configuration failure as unverified without exposing the path", async (t) => {
+  const root = await workFixture(t);
+  await writeFile(join(root.repo, ".codex-sidecar.yml"), "project: [\n");
+  const result = await runCli(root.home, root.cache, ["factory-diagnostics", "--project", root.repo]);
+  assert.equal(result.code, 1);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    status: "failed",
+    factoryReadiness: { schemaVersion: "1", overall: "unverified" },
+    errorCode: "PROTOCOL_ERROR",
+  });
+  assert.doesNotMatch(result.stdout, new RegExp(root.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
 test("async work CLI uses project-root plus idempotency key for start, result, cancel, and inspection", async (t) => {
   const root = await workFixture(t);
   const start = await runCli(root.home, root.cache, [
@@ -137,10 +252,10 @@ async function workFixture(t: test.TestContext): Promise<{ root: string; home: s
   return { ...root, repo };
 }
 
-async function runCli(home: string, cache: string, args: string[]): Promise<{ code: number | null; stdout: string; stderr: string }> {
+async function runCli(home: string, cache: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<{ code: number | null; stdout: string; stderr: string }> {
   const entrypoint = new URL("./index.js", import.meta.url).pathname;
   const child = spawn(process.execPath, [entrypoint, ...args], {
-    env: { ...process.env, CODEX_HOME: home, XDG_CACHE_HOME: cache },
+    env: { ...process.env, ...env, CODEX_HOME: home, XDG_CACHE_HOME: cache },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let stdout = ""; let stderr = "";

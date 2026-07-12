@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { cwd, exit } from "node:process";
+import { inspectNativeFactoryReadiness, nativeFactoryDiagnosticFailure } from "./diagnostics.js";
 import {
   CONFIG_FILE,
   SIDECAR_RUN_ERROR_CODES,
@@ -54,6 +55,7 @@ interface CliOptions {
 type CliCommand =
   | SidecarWorkflow
   | "diagnostics"
+  | "factory-diagnostics"
   | "auth-status"
   | "auth-recover"
   | "work-start"
@@ -205,6 +207,20 @@ try {
     exit(0);
   }
 
+  if (parsed.workflow === "factory-diagnostics") {
+    const factoryReadiness = await inspectNativeFactoryReadiness(config, {
+      projectRoot: parsed.projectRoot,
+      preset: resolvedPreset,
+      model: parsed.model,
+      modelReasoningEffort: parsed.modelReasoningEffort,
+      turnTimeoutMs: parsed.turnTimeoutMs,
+      interruptOnTimeout: parsed.interruptOnTimeout,
+      preserveWorktree: parsed.preserveWorktree,
+    });
+    printJson({ status: factoryReadiness.overall === "ready" ? "ok" : "failed", factoryReadiness });
+    exit(factoryReadiness.overall === "ready" ? 0 : 1);
+  }
+
   if (!isSidecarWorkflow(parsed.workflow)) throw new Error(`Unknown command: ${parsed.workflow}`);
   const result = await runSidecarRequest(config, {
     workflow: parsed.workflow,
@@ -224,6 +240,14 @@ try {
   printJson(result);
   exit(result.status === "failed" || result.status === "refused" ? 1 : 0);
 } catch (error) {
+  if (parsed.workflow === "factory-diagnostics") {
+    printJson({
+      status: "failed",
+      factoryReadiness: nativeFactoryDiagnosticFailure(),
+      errorCode: toSidecarError(error).code,
+    });
+    exit(1);
+  }
   if (parsed.workflow && isAsyncWorkCommand(parsed.workflow)) {
     const result = runOperationError(error);
     printJson(result);
@@ -379,7 +403,7 @@ function readCliVersion(): string {
 }
 
 function isCommand(value: string): value is CliCommand {
-  return value === "diagnostics" || value === "auth-status" || value === "auth-recover" ||
+  return value === "diagnostics" || value === "factory-diagnostics" || value === "auth-status" || value === "auth-recover" ||
     value === "work-start" || value === "work-result" || value === "work-cancel" ||
     value === "work-recover" || value === "work-auth-recover" ||
     (WORKFLOWS as readonly string[]).includes(value);
@@ -461,7 +485,7 @@ function parseAuthRecoveryStrategy(value: string): WorkAuthRecoveryStrategy {
 }
 
 function printUsage(): void {
-  console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics|auth-status|auth-recover|work-start|work-result|work-cancel|work-recover|work-auth-recover> [options] [prompt]`);
+  console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics|factory-diagnostics|auth-status|auth-recover|work-start|work-result|work-cancel|work-recover|work-auth-recover> [options] [prompt]`);
   console.error("Options: --project <dir> | --project-root <dir> --config <file> --preset <name> --output-contract <text> --output-contract-file <file> --model <model> --model-reasoning-effort <effort> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
   console.error("Async work: work-start --idempotency-key <key> [--base-ref <ref>]; work-result|work-cancel|work-recover|work-auth-recover --idempotency-key <key>");
   console.error("Work recovery: work-recover [--action quarantine --confirm-no-running-processes]");
