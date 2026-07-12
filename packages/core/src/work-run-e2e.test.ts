@@ -87,6 +87,29 @@ test("non-preserved durable work commits result and terminal before removing its
   assert.equal(await readFile(join(fixture.repo, "README.md"), "utf8"), "initial\n");
 });
 
+test("durable work refuses a deny-path write while keeping the active tree unchanged", async (t) => {
+  const fixture = await createFixture(t);
+  const started = await startWorkRun({ project: "test", allowed_paths: ["README.md"], deny_paths: [".env"] }, {
+    projectRoot: fixture.repo,
+    idempotencyKey: key,
+    prompt: "attempt to write a denied environment file",
+  }, {
+    launch: { env: workerEnv(fixture, "complete", ".env") },
+  });
+
+  assert.equal(started.kind, "run_handle", JSON.stringify(started));
+  if (started.kind !== "run_handle") throw new Error("expected durable worker handle");
+
+  const terminal = await waitForTerminal(fixture.repo, key);
+  assert.equal(terminal.state, "failed");
+  assert.equal(terminal.result.status, "refused");
+  assert.equal(terminal.result.error?.code, "SAFETY_REFUSAL");
+  assert.ok(terminal.result.worktreePath);
+  assert.equal(await readFile(join(terminal.result.worktreePath!, ".env"), "utf8"), "sidecar fixture change\n");
+  await assert.rejects(() => readFile(join(fixture.repo, ".env"), "utf8"), { code: "ENOENT" });
+  assert.equal(await readFile(join(fixture.repo, "README.md"), "utf8"), "initial\n");
+});
+
 test("cooperative cancel interrupts the owned App Server and returns a cancelled durable terminal", async (t) => {
   const fixture = await createFixture(t);
   const started = await startWorkRun(config(), {
@@ -186,7 +209,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
     return;
   }
   if (message.method === "turn/start") {
-    if (process.env.FAKE_CODEX_WRITE === "1") fs.appendFileSync(path.join(threadCwd, "README.md"), "sidecar fixture change\\n");
+    if (process.env.FAKE_CODEX_WRITE === "1") fs.appendFileSync(path.join(threadCwd, process.env.FAKE_CODEX_WRITE_PATH || "README.md"), "sidecar fixture change\\n");
     reply(message.id, { turn: { id: "turn-1", status: "in_progress", error: null } });
     if (process.env.FAKE_CODEX_MODE !== "hang") {
       setImmediate(() => {
@@ -213,13 +236,14 @@ function config(): SidecarConfig {
   return { project: "test", allowed_paths: ["README.md"] };
 }
 
-function workerEnv(fixture: Fixture, mode: "complete" | "hang"): NodeJS.ProcessEnv {
+function workerEnv(fixture: Fixture, mode: "complete" | "hang", writePath = "README.md"): NodeJS.ProcessEnv {
   return {
     CODEX_HOME: fixture.home,
     XDG_CACHE_HOME: fixture.cache,
     CODEX_BINARY: fixture.fakeCodex,
     FAKE_CODEX_MODE: mode,
     FAKE_CODEX_WRITE: "1",
+    FAKE_CODEX_WRITE_PATH: writePath,
   };
 }
 
