@@ -11,6 +11,14 @@ restart are implemented and verified. The completed plan is archived at
 [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md).
 No repository-local P0 is currently marked Planned.
 
+The 0.3.3 publication and Docker verification checklist is tracked in
+[RELEASE_0_3_3_PLAN.md](RELEASE_0_3_3_PLAN.md).
+
+The 0.3.3 release record also covers explicit kill/auth recovery constraints,
+schema-partial preservation for completed worktrees, and isolated `CODEX_HOME`
+inheritance of the GPT-5.6 long-task context settings. MCP/server and provider
+tables remain excluded from that isolated configuration.
+
 Explicit Codex model selection is implemented in `codex-sidecar`; the Caveat
 advisory preset, hook routing, diagnostics, and real-model smoke were completed
 in Caveat v0.14.7. The completed plan is archived at

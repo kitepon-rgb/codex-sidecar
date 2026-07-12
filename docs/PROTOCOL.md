@@ -204,6 +204,15 @@ Diagnostics and `SidecarResult` include `modelPolicy.source` as `explicit` when
 either field is resolved, otherwise `inherited`. Raw lifecycle logs record the
 resolved fields and the same source label.
 
+The isolated `CODEX_HOME` allowlist-copies only five top-level keys from the
+user-global `$CODEX_HOME/config.toml`: `model`, `model_provider`,
+`model_reasoning_effort`, `model_context_window`, and
+`model_auto_compact_token_limit`. It copies no TOML tables. A trusted project
+override is not copied; Codex discovers `.codex/config.toml` from the thread
+working directory. Async work therefore requires the override to exist in the
+run's base commit so the isolated worktree contains it. App Server startup also
+clears inherited MCP servers and plugins.
+
 Allowed `modelReasoningEffort` values are `low`, `medium`, `high`, and `xhigh`.
 No `none` value is accepted; omit the field when no explicit reasoning effort
 should be selected.

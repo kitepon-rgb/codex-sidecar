@@ -137,6 +137,23 @@ the same durable run rather than starting another one. See
 [docs/USAGE.md](docs/USAGE.md#asynchronous-work) for the control contract and
 recovery constraints.
 
+### GPT-5.6 long-task settings
+
+For GPT-5.6 tasks that need a long context, set the following Codex settings in
+the user-global config or in a trusted project's `.codex/config.toml`:
+
+```toml
+model_context_window = 272000
+model_auto_compact_token_limit = 240000
+```
+
+For the user-global path, sidecar allowlist-copies these two keys and the other
+permitted top-level model keys into its isolated `CODEX_HOME`; it copies no TOML
+tables. A trusted project override is not copied into that home: Codex discovers
+it from the thread working directory. For asynchronous work, the override must
+therefore be present in the run's base commit so the isolated worktree contains
+it. App Server startup still clears inherited MCP servers and plugins.
+
 ## Why Not Just Use...
 
 | Approach | What it is good at | Where `codex-sidecar` helps |
@@ -330,6 +347,8 @@ The current spine is functional:
 - raw App Server JSONL event logs with `rawEventLogRef`
 - caller-selected turn timeouts and optional interruption
 - worktree-backed `codex_work` with changed-file reporting
+- durable detached `codex_work` execution with cross-process result retrieval,
+  cancellation, quarantine, and explicit auth recovery
 - ecosystem context adapters and fixture snapshots
 - local CodeGraph index support for this repository
 

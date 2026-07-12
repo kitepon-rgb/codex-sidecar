@@ -5,10 +5,11 @@ This directory keeps the current operating docs for `codex-sidecar`.
 ## Current Docs
 
 - [00_OVERVIEW.md](00_OVERVIEW.md): canonical overview and doc map for the current project.
-- [USAGE.md](USAGE.md): CLI, MCP handler, worktree, raw log, and structured result examples.
-- [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and result contract.
-- [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary and stable sidecar contracts.
+- [USAGE.md](USAGE.md): CLI/MCP usage, durable async recovery controls, GPT-5.6 settings, release procedure, and structured result examples.
+- [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, isolated configuration, and result contract.
+- [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary, schema-partial behavior, and stable sidecar contracts.
 - [TODO.md](TODO.md): durable task list and linked GitHub issues.
+- [RELEASE_0_3_3_PLAN.md](RELEASE_0_3_3_PLAN.md): active 0.3.3 publication, verification, and rollback checklist.
 
 ## Decisions
 

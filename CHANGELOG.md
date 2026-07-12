@@ -2,7 +2,21 @@
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-07-12
+
 ### Added
+- Durable asynchronous `codex_work` controls for start, result retrieval,
+  cancellation, quarantine recovery, and auth recovery across CLI and MCP.
+- Caller-held idempotency keys and detached workers so a later CLI, stdio MCP,
+  or HTTP MCP caller can retrieve a handed-off run after a disconnect.
+- Global canonical-auth lease handling and explicit recovery paths for abnormal
+  worker termination; no automatic patch or worktree salvage is performed.
+- Schema-drift handling that returns `status: "partial"` with the raw report and
+  disclosed normalization notes while preserving completed `codex_work`
+  worktree metadata.
+- Isolated `CODEX_HOME` propagation for allowed top-level model settings,
+  including GPT-5.6 long-task context settings, without copying MCP/server or
+  provider tables.
 - `codex-sidecar-mcp` Streamable HTTP transport (selectable via
   `CODEX_SIDECAR_MCP_TRANSPORT=http`) so the MCP server can run as a LAN
   service. stdio remains the default transport.
@@ -17,12 +31,16 @@
   server as a containerised LAN service alongside other docker-based MCPs.
 - HTTP smoke test in `packages/mcp/src/server-http.test.ts` (initialize,
   tools/list, bearer rejection, missing-session rejection).
+- Durable auth/session, detached-work recovery, schema-partial, HTTP transport,
+  and npm-bin startup regression tests.
 
 ### Documentation
 - LAN MCP deployment notes (Docker compose, UFW pattern, mount layout for
   `~/.codex` and consumer repos).
 - New `CLAUDE.md` summarising commands, architecture, and invariants for
   Claude Code.
+- Durable async work, recovery constraints, GPT-5.6 long-task settings, and a
+  reproducible release procedure.
 
 ## [0.3.1] — 2026-05-08
 

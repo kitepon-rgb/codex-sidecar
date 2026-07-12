@@ -146,6 +146,23 @@ By default, `codex-sidecar` does not choose a model. The isolated `CODEX_HOME`
 keeps inherited Codex model settings, while MCP servers and plugins are still
 cleared for sidecar isolation.
 
+For GPT-5.6 long-running tasks, put the following in the user-global Codex
+config or in a trusted project's `.codex/config.toml`:
+
+```toml
+model_context_window = 272000
+model_auto_compact_token_limit = 240000
+```
+
+From the user-global `$CODEX_HOME/config.toml`, the sidecar allowlist-copies
+these two keys and the permitted top-level model keys (`model`,
+`model_provider`, and `model_reasoning_effort`) into its isolated home. It
+copies no TOML tables. A trusted project override follows a separate path: it
+is not copied into the isolated home, and Codex discovers it from the thread
+working directory. For asynchronous work, commit that override in the run's
+base revision so it exists in the isolated worktree. App Server startup still
+clears inherited MCP servers and plugins.
+
 Set model policy only when the caller wants an explicit Codex App Server
 override. Resolution order is CLI/MCP input, then preset, then `defaults`:
 
@@ -821,6 +838,123 @@ Practical integration pattern:
    references, changed files, and `rawEventLogRef`.
 5. For `codex_work`, the consuming tool reviews the preserved worktree before
    applying or cherry-picking changes.
+
+## Release Procedure
+
+Use this end-to-end procedure for an already version-aligned release. Run the
+steps in one shell so `RELEASE_VERSION`, `pnpm_release`, and
+`PACK_DIR` remain bound to the artifacts being published.
+
+1. Confirm that no unrelated work would be released. A non-empty stash is also
+   release state and must be examined, not ignored.
+
+   ```bash
+   git status --short --branch
+   git stash list
+   ```
+
+2. Bind the release version and package-manager entrypoint. The normal entry is
+   Corepack. If this host has no `corepack` executable, use an already installed
+   pnpm only after its version matches `packageManager` exactly; do not install
+   Corepack over an existing pnpm shim.
+
+   ```bash
+   RELEASE_VERSION=0.3.3
+   if command -v corepack >/dev/null; then
+     pnpm_release() { corepack pnpm "$@"; }
+   else
+     PNPM_BIN=$(command -v pnpm)
+     test -n "$PNPM_BIN"
+     pnpm_release() { "$PNPM_BIN" "$@"; }
+   fi
+   test "$(pnpm_release --version)" = "10.10.0"
+   ```
+
+3. Run the repository gates. These are the direct expansion of the root scripts
+   and also work on a host where `corepack` is absent.
+
+   ```bash
+   pnpm_release --filter codex-sidecar-core build
+   pnpm_release -r typecheck
+   pnpm_release --filter codex-sidecar-core test
+   pnpm_release --filter codex-sidecar-cli test
+   pnpm_release --filter codex-sidecar-mcp test
+   pnpm_release -r build
+   ```
+
+4. Inspect each package before publication. First inspect the dry-run file list,
+   then inspect each produced tarball's `package.json` and confirm that CLI/MCP
+   depend on the registry version of `codex-sidecar-core`, not `workspace:`.
+
+   ```bash
+   (cd packages/core && npm pack --dry-run)
+   (cd packages/cli && npm pack --dry-run)
+   (cd packages/mcp && npm pack --dry-run)
+   PACK_DIR=$(mktemp -d)
+   (cd packages/core && pnpm_release pack --pack-destination "$PACK_DIR")
+   (cd packages/cli && pnpm_release pack --pack-destination "$PACK_DIR")
+   (cd packages/mcp && pnpm_release pack --pack-destination "$PACK_DIR")
+   tar -xOf "$PACK_DIR"/codex-sidecar-cli-*.tgz package/package.json
+   tar -xOf "$PACK_DIR"/codex-sidecar-mcp-*.tgz package/package.json
+   ```
+
+5. Commit the release record with explicit pathspecs, require a clean tree,
+   then bind and push the exact verified pre-publication commit before
+   publishing immutable npm versions.
+
+   ```bash
+   git add CHANGELOG.md README.md README.ja.md docs
+   git status --short
+   git commit -m "docs: 0.3.3の公開文書を更新する" -- \
+     CHANGELOG.md README.md README.ja.md docs
+   test -z "$(git status --porcelain)"
+   PUBLISH_SHA=$(git rev-parse HEAD)
+   git push origin main
+   test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$PUBLISH_SHA"
+   ```
+
+6. Publish only after the inspection passes, in dependency order: core, then
+   CLI, then MCP. After each publish, query the registry for version `0.3.3`
+   (or the release version being published).
+
+   ```bash
+   npm publish "$PACK_DIR"/codex-sidecar-core-"$RELEASE_VERSION".tgz
+   npm view codex-sidecar-core@"$RELEASE_VERSION" version
+   npm publish "$PACK_DIR"/codex-sidecar-cli-"$RELEASE_VERSION".tgz
+   npm view codex-sidecar-cli@"$RELEASE_VERSION" version
+   npm publish "$PACK_DIR"/codex-sidecar-mcp-"$RELEASE_VERSION".tgz
+   npm view codex-sidecar-mcp@"$RELEASE_VERSION" version
+   ```
+
+7. Build and smoke the Docker image as a verification step. Do not deploy it to
+   a persistent host when no deployment target has been specified.
+
+   ```bash
+   docker build -t codex-sidecar:"$RELEASE_VERSION" .
+   ```
+
+8. Record any final release evidence (for example, complete and archive an
+   execution checklist) in a final commit, then bind `RELEASE_SHA`. Create the
+   tag and GitHub release only after that commit is pushed and the registry
+   versions are verified. Resolve the local tag and remote `main` back to the
+   same commit, and verify that the GitHub release names that tag.
+
+   ```bash
+   git add docs
+   git commit -m "docs: 0.3.3公開計画を完了する" -- docs
+   test -z "$(git status --porcelain)"
+   RELEASE_SHA=$(git rev-parse HEAD)
+   git push origin main
+   test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$RELEASE_SHA"
+   git tag -a "v$RELEASE_VERSION" "$RELEASE_SHA" -m "codex-sidecar v$RELEASE_VERSION"
+   git push origin "v$RELEASE_VERSION"
+   gh release create "v$RELEASE_VERSION" --target "$RELEASE_SHA" \
+     --title "codex-sidecar v$RELEASE_VERSION" --generate-notes
+   git fetch origin "refs/tags/v$RELEASE_VERSION:refs/tags/v$RELEASE_VERSION"
+   test "$(git rev-parse "v$RELEASE_VERSION^{commit}")" = "$RELEASE_SHA"
+   test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
+   test "$(gh release view "v$RELEASE_VERSION" --json tagName --jq .tagName)" = "v$RELEASE_VERSION"
+   ```
 
 ## Verification Commands
 

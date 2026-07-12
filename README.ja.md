@@ -105,6 +105,38 @@ codex-sidecar work \
 
 workflow 固有 field がこの共通 field の上に乗ります — `review` は `findings` / `missingTests` / `residualRisks`、`work` は `changedFiles` / `tests` / `worktreePath` などを追加します。完全な contract は [docs/USAGE.md](docs/USAGE.md#structured-result-contract) を参照してください。
 
+### 長時間 work
+
+従来の同期 `work` は直接実行用として引き続き使えます。MCP stdio の切断や
+呼び出し元の再起動をまたいで実行する必要がある場合は、非同期 control を使います。
+CLI は `work-start` / `work-result` / `work-cancel` / `work-recover` /
+`work-auth-recover`、MCP は `codex_work_start` / `codex_work_result` /
+`codex_work_cancel` / `codex_work_recover` / `codex_work_auth_recover` を提供します。
+
+呼び出し元は idempotency key を生成して保持します。同じ key での retry や
+再取得は新しい run を作らず、同じ耐久 run を参照します。handoff 成功後の worker
+は切り離されるため、stdio の切断後や新しい CLI/MCP process からも同じ key で
+結果を取得できます。異常 kill 後に patch や worktree を自動 salvage / cleanup
+することはありません。quarantine と auth recovery は確認を要する明示操作で、
+詳細な回復制約は [docs/USAGE.md](docs/USAGE.md#asynchronous-work) を参照してください。
+
+### GPT-5.6 長時間タスク設定
+
+GPT-5.6 で長い context が必要なタスクは、user global config または trusted
+project の `.codex/config.toml` に次を設定します:
+
+```toml
+model_context_window = 272000
+model_auto_compact_token_limit = 240000
+```
+
+user global 側については、sidecar がこの 2 key と許可された top-level model key
+だけを隔離 `CODEX_HOME` へ allowlist copy し、TOML table はコピーしません。
+trusted project override は隔離 home へコピーせず、Codex が thread の working
+directory から読みます。非同期 work では isolated worktree に含まれるよう、override
+を run の base commit に入れておく必要があります。App Server 起動時は inherited
+MCP server と plugin も引き続きクリアします。
+
 ## 何が嬉しいか
 
 | 直接使う手段 | 得意なこと | `codex-sidecar` が足すもの |
