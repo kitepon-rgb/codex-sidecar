@@ -3,12 +3,16 @@ import { readFileSync } from "node:fs";
 import { cwd, exit } from "node:process";
 import {
   CONFIG_FILE,
+  WorkAuthRecoveryStrategy,
   WORKFLOWS,
   buildEcosystemContextBlocks,
   buildSidecarRequest,
   loadSidecarConfig,
   modelPolicyInfo,
   runSidecarRequest,
+  inspectCurrentDurableAuthRecovery,
+  recoverSyncDurableAuthSession,
+  type AuthRecoveryStrategy,
   type ModelReasoningEffort,
   type SidecarContextBlock,
   type SidecarWorkflow,
@@ -29,11 +33,23 @@ interface CliOptions {
   interruptOnTimeout: boolean;
   preserveWorktree: boolean;
   context: SidecarContextBlock[];
+  sessionId?: string;
+  authRecoveryStrategy?: AuthRecoveryStrategy;
+  confirmNoRunningProcesses: boolean;
 }
 
-type CliCommand = SidecarWorkflow | "diagnostics";
+type CliCommand = SidecarWorkflow | "diagnostics" | "auth-status" | "auth-recover";
 
-const parsed = parseArgs(process.argv.slice(2));
+let parsed: CliOptions;
+try {
+  parsed = parseArgs(process.argv.slice(2));
+} catch (error) {
+  printJson({
+    status: "failed",
+    error: error instanceof Error ? error.message : String(error),
+  });
+  exit(1);
+}
 
 if (!parsed.workflow) {
   printUsage();
@@ -41,6 +57,24 @@ if (!parsed.workflow) {
 }
 
 try {
+  if (parsed.workflow === "auth-status") {
+    printJson(await inspectCurrentDurableAuthRecovery());
+    exit(0);
+  }
+
+  if (parsed.workflow === "auth-recover") {
+    if (!parsed.sessionId) throw new Error("--session-id is required for auth-recover");
+    if (!parsed.authRecoveryStrategy) throw new Error("--strategy is required for auth-recover");
+    if (!parsed.confirmNoRunningProcesses) throw new Error("--confirm-no-running-processes is required for auth-recover");
+    await recoverSyncDurableAuthSession({
+      sessionId: parsed.sessionId,
+      strategy: parsed.authRecoveryStrategy,
+      confirmNoRunningProcesses: true,
+    });
+    printJson({ status: "ok", sessionId: parsed.sessionId, strategy: parsed.authRecoveryStrategy });
+    exit(0);
+  }
+
   const config = await loadSidecarConfig(parsed.projectRoot, parsed.configFile);
   const resolvedPreset =
     parsed.preset ??
@@ -105,6 +139,7 @@ function parseArgs(args: string[]): CliOptions {
     interruptOnTimeout: true,
     preserveWorktree: true,
     context: [],
+    confirmNoRunningProcesses: false,
   };
   const promptParts: string[] = [];
 
@@ -179,6 +214,23 @@ function parseArgs(args: string[]): CliOptions {
       continue;
     }
 
+    if (arg === "--session-id") {
+      options.sessionId = requireValue(args, (index += 1), "--session-id");
+      continue;
+    }
+
+    if (arg === "--strategy") {
+      options.authRecoveryStrategy = parseAuthRecoveryStrategy(
+        requireValue(args, (index += 1), "--strategy"),
+      );
+      continue;
+    }
+
+    if (arg === "--confirm-no-running-processes") {
+      options.confirmNoRunningProcesses = true;
+      continue;
+    }
+
     if (arg === "--json") {
       options.json = true;
       continue;
@@ -196,7 +248,7 @@ function parseArgs(args: string[]): CliOptions {
 }
 
 function isCommand(value: string): value is CliCommand {
-  return value === "diagnostics" || (WORKFLOWS as readonly string[]).includes(value);
+  return value === "diagnostics" || value === "auth-status" || value === "auth-recover" || (WORKFLOWS as readonly string[]).includes(value);
 }
 
 function requireValue(args: string[], index: number, option: string): string {
@@ -227,9 +279,17 @@ function parseModelReasoningEffort(value: string, option: string): ModelReasonin
   throw new Error(`${option} must be one of: low, medium, high, xhigh`);
 }
 
+function parseAuthRecoveryStrategy(value: string): AuthRecoveryStrategy {
+  if ((Object.values(WorkAuthRecoveryStrategy) as string[]).includes(value)) {
+    return value as AuthRecoveryStrategy;
+  }
+  throw new Error(`--strategy must be one of: ${Object.values(WorkAuthRecoveryStrategy).join(", ")}`);
+}
+
 function printUsage(): void {
-  console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics> [options] [prompt]`);
+  console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics|auth-status|auth-recover> [options] [prompt]`);
   console.error("Options: --project <dir> --config <file> --preset <name> --output-contract <text> --output-contract-file <file> --model <model> --model-reasoning-effort <effort> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
+  console.error("Auth recovery: auth-recover --session-id <id> --strategy <write-back-run-local|keep-canonical-after-login|release-never-started|release-clean> --confirm-no-running-processes");
 }
 
 function printJson(value: unknown): void {

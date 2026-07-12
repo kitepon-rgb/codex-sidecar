@@ -139,6 +139,10 @@ export async function runReadOnlyAppServerRequest(
       throw new Error(`APP_SERVER_TIMEOUT: App Server turn timed out after ${turnTimeoutMs}ms for thread=${threadId} turn=${turnId}`);
     }
 
+    // Persist any atomic auth rotation while this coordinator still owns the
+    // App Server handle. A later abnormal loss may recover only this evidence.
+    await authSession?.recordRunLocalRotation();
+
     const completion = findTurnCompletion(client.notifications, filter);
     if (!completion) {
       throw new Error(`PROTOCOL_ERROR: turn/completed notification was not retained for thread=${threadId} turn=${turnId}`);

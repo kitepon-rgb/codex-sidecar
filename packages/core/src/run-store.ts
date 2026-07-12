@@ -6,6 +6,7 @@ import { basename, dirname, join } from "node:path";
 import { DEFAULT_TURN_TIMEOUT_MS, WORKFLOWS, type ResultFormat, type SafetyProfileName, type SidecarContextBlock, type SidecarRequest } from "./types.js";
 import { promisify } from "node:util";
 import type { NewRunSnapshot, RunStartInput, SidecarRunManifest, StoredRun } from "./run-types.js";
+import type { LookupInput } from "./run-types.js";
 import { currentProcessIdentity } from "./process-identity.js";
 import type { LaunchClaim } from "./run-types.js";
 import { publishRecord, readClaim as readLaunchClaim } from "./run-records.js";
@@ -93,6 +94,25 @@ export async function openOrCreateRun(
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });
   }
+}
+
+/**
+ * Read-only run lookup for result/cancel/operator recovery. It never creates
+ * the common-dir store and never reloads a normalized request.
+ */
+export async function lookupStoredRun(input: LookupInput): Promise<StoredRun> {
+  assertIdempotencyKey(input.idempotencyKey);
+  const callerWorktreePath = await canonicalPath(input.projectRoot);
+  const projectStoreIdentity = await resolveGitCommonDir(callerWorktreePath);
+  const storeRoot = join(projectStoreIdentity, "codex-sidecar", "runs");
+  const runId = sha256(`${projectStoreIdentity}\0${input.idempotencyKey}`);
+  const runDirectory = join(storeRoot, runId);
+  const manifest = await readExisting(runDirectory);
+  if (!manifest) throw new RunStoreError("RUN_NOT_FOUND", "no durable work run matches this idempotency key");
+  if (manifest.runId !== runId || manifest.projectStoreIdentity !== projectStoreIdentity) {
+    throw new RunStoreError("RUN_STORE_CORRUPT", "stored run identity does not match the requested project/key");
+  }
+  return { storeRoot, runDirectory, manifest, created: false, claim: await readClaim(runDirectory) };
 }
 
 async function readClaim(runDirectory: string): Promise<LaunchClaim> {

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
-import { openOrCreateRun } from "./run-store.js";
+import { lookupStoredRun, openOrCreateRun } from "./run-store.js";
 import { toSidecarError } from "./results.js";
 import type { RunStartInput } from "./run-types.js";
 import { SIDECAR_RUN_ERROR_CODES, type SidecarRequest } from "./types.js";
@@ -93,6 +93,17 @@ test("a discarded start response is recovered by re-opening with the same key", 
   const recovered = await open(repo, { prepare: async () => { throw new Error("response-loss retry must not prepare"); } });
   assert.equal(recovered.manifest.runId, discarded.manifest.runId);
   assert.equal(recovered.created, false);
+});
+
+test("read-only lookup resolves the exact durable run without creating a store", async (t) => {
+  const repo = await createRepo(t);
+  await assert.rejects(() => lookupStoredRun({ projectRoot: repo, idempotencyKey: key }), { code: "RUN_NOT_FOUND" });
+  const stored = await open(repo);
+  const found = await lookupStoredRun({ projectRoot: repo, idempotencyKey: key });
+  assert.equal(found.created, false);
+  assert.equal(found.runDirectory, stored.runDirectory);
+  assert.deepEqual(found.manifest, stored.manifest);
+  assert.deepEqual(found.claim, stored.claim);
 });
 
 test("raw identity applies only API-fixed defaults and distinguishes config-derived omissions", async (t) => {
