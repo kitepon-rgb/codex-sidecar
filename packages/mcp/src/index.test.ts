@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -457,6 +457,10 @@ test("stdio server starts when invoked through a symlinked bin path", async () =
 
   try {
     await client.connect(transport);
+    const manifest = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    ) as { version: string };
+    assert.equal(client.getServerVersion()?.version, manifest.version);
     const tools = await client.listTools();
 
     assert.deepEqual(

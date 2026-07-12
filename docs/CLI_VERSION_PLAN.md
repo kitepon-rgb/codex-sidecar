@@ -35,8 +35,10 @@ patch release.
   config/cache access.
 - [x] Implement manifest-backed `--version` handling before normal parsing.
 - [x] Update README, changelog, TODO, and docs indexes.
-- [x] Run targeted and full verification gates.
-- [x] Pack/install smoke the distributed CLI bin.
+- [x] Remove the hard-coded MCP handshake version and verify it against the
+  packaged MCP manifest.
+- [x] Run targeted and full verification gates after the MCP correction.
+- [x] Pack/install smoke the corrected distributed CLI and MCP bins.
 - [ ] Commit, push, confirm CI, and publish lockstep 0.3.4 packages.
 - [ ] Create and verify tag/GitHub release `v0.3.4`.
 - [ ] Mark complete and archive this plan.

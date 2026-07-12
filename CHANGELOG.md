@@ -10,6 +10,8 @@
   touching auth/cache state.
 - A subprocess regression test fixes stdout, stderr, exit code, and no-cache
   behavior for the distributed CLI contract.
+- MCP initialize responses now read `serverInfo.version` from the installed MCP
+  package manifest instead of duplicating a release number in runtime code.
 
 ## [0.3.3] — 2026-07-12
 

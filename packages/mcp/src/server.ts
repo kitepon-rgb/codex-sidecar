@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -89,7 +89,7 @@ const workAuthRecoveryInputSchema = {
 
 export function buildCodexSidecarMcpServer(): McpServer {
   const server = new McpServer(
-    { name: "codex-sidecar", version: "0.3.3" },
+    { name: "codex-sidecar", version: readMcpVersion() },
     { capabilities: { tools: {} } },
   );
 
@@ -116,6 +116,22 @@ export function buildCodexSidecarMcpServer(): McpServer {
   }
 
   return server;
+}
+
+function readMcpVersion(): string {
+  const manifest = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as unknown;
+  if (
+    typeof manifest !== "object" ||
+    manifest === null ||
+    !("version" in manifest) ||
+    typeof manifest.version !== "string" ||
+    !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(manifest.version)
+  ) {
+    throw new Error("MCP package manifest has an invalid version");
+  }
+  return manifest.version;
 }
 
 function inputSchemaForTool(toolName: CodexSidecarToolName) {
