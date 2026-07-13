@@ -13,8 +13,8 @@ The completed 0.3.5 release record is archived at
 [RELEASE_0_3_5_PLAN.md](archive/RELEASE_0_3_5_PLAN.md). The completed 0.3.4
 CLI/MCP version contract and release record is archived at
 [CLI_VERSION_PLAN.md](archive/CLI_VERSION_PLAN.md).
-The active 0.3.7 release gate is tracked in
-[WINDOWS_MCP_SHIM_PLAN.md](WINDOWS_MCP_SHIM_PLAN.md).
+The completed 0.3.7 Windows command-shim release record is archived at
+[WINDOWS_MCP_SHIM_PLAN.md](archive/WINDOWS_MCP_SHIM_PLAN.md).
 
 ## Current Canonical Docs
 
