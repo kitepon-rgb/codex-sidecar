@@ -9,6 +9,7 @@ This directory keeps the current operating docs for `codex-sidecar`.
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, isolated configuration, and result contract.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server protocol boundary, schema-partial behavior, and stable sidecar contracts.
 - [TODO.md](TODO.md): durable task list and linked GitHub issues.
+- [RELEASE_0_3_6_PLAN.md](RELEASE_0_3_6_PLAN.md): active 0.3.6 release gate and evidence ledger.
 
 ## Decisions
 

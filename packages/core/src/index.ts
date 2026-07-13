@@ -18,7 +18,7 @@ export type {
   AuthLeaseWriteBackEvidence,
   AuthRecoveryStrategy,
 } from "./auth-lease.js";
-export { AppServerProtocolError, AppServerRequestError, encodeAppServerMessage, parseAppServerLine } from "./app-server-client.js";
+export { AppServerProtocolError, AppServerRequestError, assertOutputSchemaSupport, encodeAppServerMessage, parseAppServerLine } from "./app-server-client.js";
 export type { AppServerRequestId, AppServerWireRequest, AppServerWireNotification, AppServerWireResponse, AppServerWireError, AppServerWireMessage, AppServerInitializeResult } from "./app-server-client.js";
 export * from "./app-server-events.js";
 export * from "./app-server-logs.js";
@@ -48,6 +48,7 @@ export { startWorkRun, getWorkRunResult, cancelWorkRun } from "./work-run-servic
 export type { WorkRunConfigSource, WorkRunStartOptions } from "./work-run-service.js";
 export * from "./safety.js";
 export * from "./structured-output.js";
+export * from "./structured-output-schema.js";
 export * from "./worktree.js";
 export * from "./worktree-runner.js";
 export { inspectWorkAuthRecovery, recoverWorkAuthSession } from "./work-auth-recovery.js";

@@ -1,5 +1,6 @@
 import type { ModelReasoningEffort, SidecarRequest } from "./types.js";
 import { buildStructuredOutputPrompt } from "./structured-output.js";
+import { buildSidecarOutputSchema, type SidecarOutputSchema } from "./structured-output-schema.js";
 import { buildGenerationPrompt } from "./generate.js";
 
 export const APP_SERVER_PROTOCOL_METHODS = {
@@ -67,6 +68,7 @@ export interface AppServerTurnStartDraft {
     input: Array<{ type: "text"; text: string; text_elements: [] }>;
     cwd: string;
     approvalPolicy: "never";
+    outputSchema?: SidecarOutputSchema;
   };
 }
 
@@ -146,6 +148,7 @@ export function buildThreadStartDraft(request: SidecarRequest): AppServerThreadS
 }
 
 export function buildTurnStartDraft(request: SidecarRequest, threadId: string): AppServerTurnStartDraft {
+  const outputSchema = buildSidecarOutputSchema(request);
   return {
     method: APP_SERVER_PROTOCOL_METHODS.turnStart,
     params: {
@@ -153,6 +156,7 @@ export function buildTurnStartDraft(request: SidecarRequest, threadId: string): 
       input: [{ type: "text", text: buildTurnPromptText(request), text_elements: [] }],
       cwd: request.projectRoot,
       approvalPolicy: "never",
+      ...(outputSchema ? { outputSchema } : {}),
     },
   };
 }

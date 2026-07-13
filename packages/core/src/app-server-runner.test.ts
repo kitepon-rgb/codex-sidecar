@@ -264,6 +264,52 @@ test("runReadOnlyAppServerRequest fails explicitly on malformed structured outpu
   await rm(eventLogDir, { recursive: true, force: true });
 });
 
+test("runReadOnlyAppServerRequest rejects trailing garbage after a valid JSON object", async () => {
+  const eventLogDir = await makeTempLogDir();
+  const valid = JSON.stringify({
+    summary: "valid core",
+    confidence: { level: "high" },
+    recommendedNextAction: "stop",
+    openQuestions: [],
+    fileReferences: [],
+    sourceBoundaries: [],
+  });
+  const client = new FakeAppServerClient([
+    { kind: "notification", method: "item/agentMessage/delta", params: { threadId: "thread-1", turnId: "turn-1", itemId: "item-1", delta: `${valid}\ntrailing prose` } },
+    { kind: "notification", method: "turn/completed", params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed", error: null } } },
+  ]);
+
+  const result = await runReadOnlyAppServerRequest(request, { client, eventLogDir });
+  assert.equal(result.status, "failed");
+  assert.equal(result.error?.code, "PROTOCOL_ERROR");
+  assert.match(result.error?.message ?? "", /assistant output was not valid JSON/);
+  await rm(eventLogDir, { recursive: true, force: true });
+});
+
+test("runReadOnlyAppServerRequest fails closed when the App Server rejects outputSchema", async () => {
+  const eventLogDir = await makeTempLogDir();
+  const client = new FakeAppServerClient([
+    {
+      kind: "notification",
+      method: "error",
+      params: { threadId: "thread-1", turnId: "turn-1", error: { message: "invalid_json_schema" }, willRetry: false },
+    },
+    {
+      kind: "notification",
+      method: "turn/completed",
+      params: { threadId: "thread-1", turn: { id: "turn-1", status: "failed", error: { message: "invalid_json_schema" } } },
+    },
+  ]);
+
+  const result = await runReadOnlyAppServerRequest(request, { client, eventLogDir });
+  assert.equal(result.status, "failed");
+  assert.equal(result.error?.code, "PROTOCOL_ERROR");
+  assert.match(result.error?.message ?? "", /status=failed/);
+  const log = await readJsonlLog(result.rawEventLogRef);
+  assert.ok(log.some((entry) => entry.event === "notification/retained"));
+  await rm(eventLogDir, { recursive: true, force: true });
+});
+
 test("runReadOnlyAppServerRequest fails explicitly when assistant text is missing", async () => {
   const eventLogDir = await makeTempLogDir();
   const client = new FakeAppServerClient([

@@ -11,6 +11,7 @@ import { readRecord, type SpawnRecord } from "./run-records.js";
 import { WorkAuthRecoveryStrategy } from "./run-types.js";
 import { cancelWorkRun, getWorkRunResult, startWorkRun } from "./work-run-service.js";
 import { recoverWorkAuthSession } from "./work-auth-recovery.js";
+import { buildSidecarOutputSchema } from "./structured-output-schema.js";
 import type { SidecarConfig, SidecarRunInterrupted, SidecarRunPending, SidecarRunTerminal } from "./types.js";
 
 const exec = promisify(execFile);
@@ -52,6 +53,16 @@ test("default durable worker executes an isolated App Server process and persist
   assert.equal((await lstat(logs)).mode & 0o777, 0o700);
   const log = join(logs, logEntries.find((entry) => entry.endsWith(".jsonl"))!);
   assert.equal((await lstat(log)).mode & 0o777, 0o600);
+  const rawLog = await readFile(log, "utf8");
+  const turnStart = rawLog.split("\n").filter(Boolean).map((line) => JSON.parse(line) as {
+    event?: string;
+    data?: { method?: string; params?: { outputSchema?: unknown } };
+  }).find((entry) => entry.event === "request/send" && entry.data?.method === "turn/start");
+  assert.deepEqual(
+    turnStart?.data?.params?.outputSchema,
+    buildSidecarOutputSchema(terminal.result.normalizedRequest!),
+    "raw App Server log must retain the exact turn/start outputSchema payload",
+  );
 
   assert.deepEqual(
     await inspectCurrentDurableAuthRecovery({ baseEnv: { CODEX_HOME: fixture.home }, cacheRoot: fixture.cache }),
@@ -514,7 +525,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
   const message = JSON.parse(line);
   if (message.method === "initialize") {
     if (process.env.FAKE_CODEX_INITIALIZE_MARKER) fs.writeFileSync(process.env.FAKE_CODEX_INITIALIZE_MARKER, "initialized\\n");
-    reply(message.id, { userAgent: "fixture", codexHome: process.env.CODEX_HOME || "", platformFamily: "unix", platformOs: process.platform });
+    reply(message.id, { userAgent: "codex-sidecar/0.144.1 (fixture)", codexHome: process.env.CODEX_HOME || "", platformFamily: "unix", platformOs: process.platform });
     return;
   }
   if (message.method === "thread/start") {

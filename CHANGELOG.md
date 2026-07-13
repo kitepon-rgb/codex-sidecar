@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.3.6] — 2026-07-13
+
+### Added
+- Workflow-specific closed `outputSchema` generation for structured workflows,
+  with Codex App Server 0.144.1 capability preflight and fail-closed handling.
+- `generate` remains on its caller-supplied object/array output contract without
+  changing its existing acceptance behavior.
+
+### Verified
+- Caveat advisory smoke completed 8/8 independent Luna low runs (Stop and
+  tool-error, four each) with schema-valid structured results.
+
 ## [0.3.5] — 2026-07-13
 
 ### Fixed

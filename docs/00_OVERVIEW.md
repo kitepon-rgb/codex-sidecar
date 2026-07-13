@@ -4,16 +4,17 @@
 reviews, codebase exploration, risk checks, structured generation, and scoped
 work inside isolated git worktrees.
 
-The 0.3.5 patch release keeps durable asynchronous `codex_work` control and
-result recovery after caller disconnects, with explicit auth/kill recovery
-constraints and schema-partial preservation. The isolated `CODEX_HOME` still
-inherits permitted model, provider, and reasoning-effort settings, but no
-longer inherits caller context-window or auto-compaction threshold overrides.
+The pending 0.3.6 release adds workflow-specific closed output schemas with a
+Codex App Server 0.144.1 preflight while preserving `generate`'s caller-owned
+object/array output contract. The completed 0.3.5 patch release keeps durable
+asynchronous `codex_work` control and result recovery after caller disconnects.
 
 The completed 0.3.5 release record is archived at
 [RELEASE_0_3_5_PLAN.md](archive/RELEASE_0_3_5_PLAN.md). The completed 0.3.4
 CLI/MCP version contract and release record is archived at
 [CLI_VERSION_PLAN.md](archive/CLI_VERSION_PLAN.md).
+The active 0.3.6 release gate is tracked in
+[RELEASE_0_3_6_PLAN.md](RELEASE_0_3_6_PLAN.md).
 
 ## Current Canonical Docs
 

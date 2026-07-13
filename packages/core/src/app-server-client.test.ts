@@ -7,12 +7,14 @@ import { AppServerClient } from "./app-server-client.js";
 import { matchesProcessIdentity, processStartIdentity } from "./process-identity.js";
 import {
   AppServerProtocolError,
+  assertOutputSchemaSupport,
   buildAppServerCommand,
   buildInitializeDraft,
   buildThreadStartDraft,
   buildTurnInterruptDraft,
   buildTurnStartDraft,
   buildStructuredOutputPrompt,
+  buildSidecarOutputSchema,
   collectAgentMessageText,
   encodeAppServerMessage,
   findTurnCompletion,
@@ -167,18 +169,84 @@ test("buildThreadStartDraft uses strict sidecar defaults", () => {
 
 test("buildTurnStartDraft encodes structured-output text input with generated protocol shape", () => {
   const draft = buildTurnStartDraft(sampleRequest, "thread-1");
-
-  assert.deepEqual(draft, {
-    method: "turn/start",
-    params: {
-      threadId: "thread-1",
-      input: [{ type: "text", text: buildStructuredOutputPrompt(sampleRequest), text_elements: [] }],
-      cwd: "/repo",
-      approvalPolicy: "never",
-    },
+  assert.equal(draft.method, "turn/start");
+  assert.deepEqual(draft.params, {
+    threadId: "thread-1",
+    input: [{ type: "text", text: buildStructuredOutputPrompt(sampleRequest), text_elements: [] }],
+    cwd: "/repo",
+    approvalPolicy: "never",
+    outputSchema: buildSidecarOutputSchema(sampleRequest),
   });
   assert.match(draft.params.input[0].text, /Return exactly one JSON object/);
   assert.match(draft.params.input[0].text, /findings/);
+});
+
+test("buildTurnStartDraft leaves generate on its caller-defined JSON contract", () => {
+  const draft = buildTurnStartDraft({ ...sampleRequest, workflow: "generate", outputContract: "an array" }, "thread-1");
+  assert.equal("outputSchema" in draft.params, false);
+});
+
+test("buildSidecarOutputSchema publishes the parser-required fields for every stable workflow", () => {
+  const expected: Record<string, string[]> = {
+    review: ["findings", "missingTests", "residualRisks"],
+    explore: [],
+    work: ["tests", "risks"],
+    opinion: ["recommendation", "objections", "assumptions", "failureModes"],
+    "risk-check": ["risks"],
+    auditor: ["pass", "missingTools"],
+  };
+  const common = ["summary", "confidence", "recommendedNextAction", "openQuestions", "fileReferences", "sourceBoundaries"];
+
+  for (const [workflow, workflowFields] of Object.entries(expected)) {
+    const schema = buildSidecarOutputSchema({ ...sampleRequest, workflow: workflow as SidecarRequest["workflow"] });
+    assert.deepEqual(schema?.required, [...common, ...workflowFields], workflow);
+    assertClosedSchema(schema, workflow);
+  }
+});
+
+function assertClosedSchema(value: unknown, path: string): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  const schema = value as Record<string, unknown>;
+  if (schema.type === "object") {
+    assert.equal(schema.additionalProperties, false, `${path}.additionalProperties`);
+    const properties = schema.properties as Record<string, unknown>;
+    assert.deepEqual(new Set(schema.required as string[]), new Set(Object.keys(properties)), `${path}.required`);
+  }
+  for (const [key, child] of Object.entries(schema)) assertClosedSchema(child, `${path}.${key}`);
+}
+
+test("outputSchema capability preflight accepts 0.144.1+ and rejects old or unknown servers", () => {
+  assert.doesNotThrow(() => assertOutputSchemaSupport("codex-sidecar/0.144.1 (macos)"));
+  assert.doesNotThrow(() => assertOutputSchemaSupport("codex-sidecar/0.145.0 (macos)"));
+  assert.throws(() => assertOutputSchemaSupport("codex-sidecar/0.143.9 (macos)"), /requires Codex App Server >= 0\.144\.1/);
+  assert.throws(() => assertOutputSchemaSupport("fixture"), /cannot verify turn\/start outputSchema support/);
+});
+
+test("AppServerClient rejects an old server before sending turn/start", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "app-server-old-schema-"));
+  const log = join(root, "methods.jsonl");
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const source = `
+    const fs = require("node:fs");
+    const readline = require("node:readline");
+    readline.createInterface({ input: process.stdin }).on("line", (line) => {
+      const message = JSON.parse(line);
+      fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(message.method) + "\\n");
+      if (message.method === "initialize") {
+        process.stdout.write(JSON.stringify({ id: message.id, result: { userAgent: "codex-sidecar/0.143.9 (fixture)", codexHome: process.env.CODEX_HOME, platformFamily: "unix", platformOs: process.platform } }) + "\\n");
+      }
+    });
+    process.on("SIGTERM", () => process.exit(0));
+  `;
+  const client = AppServerClient.start({
+    command: process.execPath,
+    args: ["-e", source],
+    env: { ...process.env, CODEX_HOME: root },
+  });
+  await client.initialize();
+  await assert.rejects(() => client.startTurn(sampleRequest, "thread-1"), /requires Codex App Server >= 0\.144\.1/);
+  await client.close();
+  assert.deepEqual((await readFile(log, "utf8")).trim().split("\n").map((line) => JSON.parse(line)), ["initialize"]);
 });
 
 test("buildTurnInterruptDraft encodes turn interrupt request", () => {

@@ -85,6 +85,23 @@ interface PendingNotification {
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
+const OUTPUT_SCHEMA_MIN_VERSION = [0, 144, 1] as const;
+
+export function assertOutputSchemaSupport(userAgent: string): void {
+  const match = /\/(\d+)\.(\d+)\.(\d+)(?:\b|[-+])/.exec(userAgent);
+  if (!match) {
+    throw new AppServerProtocolError(`cannot verify turn/start outputSchema support from userAgent=${JSON.stringify(userAgent)}`);
+  }
+  const version = [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+  for (let index = 0; index < OUTPUT_SCHEMA_MIN_VERSION.length; index += 1) {
+    if (version[index]! > OUTPUT_SCHEMA_MIN_VERSION[index]!) return;
+    if (version[index]! < OUTPUT_SCHEMA_MIN_VERSION[index]!) {
+      throw new AppServerProtocolError(
+        `turn/start outputSchema requires Codex App Server >= ${OUTPUT_SCHEMA_MIN_VERSION.join(".")}; received ${version.join(".")}`,
+      );
+    }
+  }
+}
 
 export class AppServerProtocolError extends Error {
   constructor(message: string) {
@@ -110,6 +127,7 @@ export class AppServerClient {
   private stderrBuffer = "";
   private closed = false;
   private processClosed = false;
+  private initializeResult?: AppServerInitializeResult;
   private readonly pending = new Map<AppServerRequestId, PendingRequest>();
   private readonly notificationWaiters = new Set<PendingNotification>();
   private readonly requestTimeoutMs: number;
@@ -202,7 +220,9 @@ export class AppServerClient {
 
   async initialize(version = "0.0.0"): Promise<AppServerInitializeResult> {
     const draft = buildInitializeDraft(version);
-    return this.request<AppServerInitializeResult>(draft.method, draft.params);
+    const result = await this.request<AppServerInitializeResult>(draft.method, draft.params);
+    this.initializeResult = result;
+    return result;
   }
 
   async startThread(request: SidecarRequest): Promise<AppServerThreadStartResponse> {
@@ -211,6 +231,12 @@ export class AppServerClient {
   }
 
   async startTurn(request: SidecarRequest, threadId: string): Promise<AppServerTurnStartResponse> {
+    if (request.workflow !== "generate") {
+      if (!this.initializeResult) {
+        throw new AppServerProtocolError("turn/start requires a completed initialize response before outputSchema capability validation");
+      }
+      assertOutputSchemaSupport(this.initializeResult.userAgent);
+    }
     const draft = buildTurnStartDraft(request, threadId);
     return this.request<AppServerTurnStartResponse>(draft.method, draft.params);
   }

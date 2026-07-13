@@ -85,7 +85,7 @@ test("factory-diagnostics returns native readiness without exposing request or f
   const mcp = join(bin, "codex-sidecar-mcp");
   await writeFile(mcp, `#!/bin/sh
 read request
-printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-sidecar","version":"0.3.5"}}}'
+printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-sidecar","version":"0.3.6"}}}'
 `);
   await chmod(mcp, 0o755);
   const context = join(root.repo, "context.json");
@@ -127,9 +127,9 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-si
     packageVersions: {
       status: "ready",
       packages: {
-        cli: "0.3.5",
-        core: "0.3.5",
-        mcp: "0.3.5",
+        cli: "0.3.6",
+        core: "0.3.6",
+        mcp: "0.3.6",
       },
     },
     resultSchema: { status: "ready" },

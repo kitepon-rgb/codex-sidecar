@@ -105,9 +105,12 @@ Server changes:
 
 ## Structured App Server Output
 
-App Server turns are prompted to return exactly one JSON object. The adapter
-parses that object directly into `SidecarResult` fields. Validation is split into
-a hard core and a soft layer:
+For `review`, `explore`, `work`, `opinion`, `risk-check`, and `auditor`, the
+adapter sends a workflow-specific JSON Schema in `turn/start.params.outputSchema`
+and also prompts the turn to return exactly one JSON object. The schema is the
+generation boundary; the parser remains the fail-closed acceptance boundary and
+normalizes the object into `SidecarResult` fields. Validation is split into a
+hard core and a soft layer:
 
 - **Hard core** — the assistant output must be valid JSON with an object root and
   a non-empty `summary` and `recommendedNextAction`. A failure here is
@@ -150,6 +153,31 @@ Workflow-specific fields (soft — a failure degrades to `partial`, not `failed`
 - `opinion`: `recommendation`, `objections`, `assumptions`, `failureModes`
 - `explore`: answer text in `summary`, citations in `fileReferences`
 - `work`: `tests`, `risks`
+
+The generation schema and acceptance parser deliberately have different jobs:
+
+| Policy | Fields | Generation schema | Parser behavior |
+| --- | --- | --- | --- |
+| hard required | `summary`, `recommendedNextAction` | required | missing/invalid is `failed` |
+| ok required | `confidence`, `openQuestions`, `fileReferences`, `sourceBoundaries`, plus the workflow fields above | required | missing/invalid is `partial` for non-schema callers |
+| parser-only soft | optional nested detail such as confidence rationale, file line/label, finding evidence/file/line, risk suggested verification, and test summary | omitted from the closed schema | accepted when present and valid |
+
+Every object present in the generation schema is closed with
+`additionalProperties: false`, and every declared property is required. Optional
+nested details stay outside the generation schema instead of being fabricated as
+empty or nullable values. The parser remains tolerant of those details for older
+and non-schema callers.
+
+`generate` is deliberately excluded. Its caller-supplied `outputContract` can
+describe an object or array, so the stable `SidecarResult` schema must
+not override it.
+
+The output-schema wire field is supported and locally verified with Codex App
+Server 0.144.1. Before sending a non-`generate` `turn/start`, Sidecar checks the
+version in the completed initialize response. An older or unidentifiable server
+fails with `PROTOCOL_ERROR`; there is no silent prompt-only fallback. Upgrade
+Codex to 0.144.1 or newer. The raw App Server JSONL log retains the exact outbound
+`turn/start` request, including `outputSchema`, for diagnosis.
 
 ## Raw Event Logs
 

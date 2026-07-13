@@ -351,7 +351,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
   const message = JSON.parse(line);
   if (message.method === "initialize") {
     if (process.env.FAKE_CODEX_READY_FILE) writeFileSync(process.env.FAKE_CODEX_READY_FILE, "ready\\n");
-    reply(message.id, { userAgent: "fixture", codexHome: process.env.CODEX_HOME || "", platformFamily: "unix", platformOs: process.platform });
+    reply(message.id, { userAgent: "codex-sidecar/0.144.1 (fixture)", codexHome: process.env.CODEX_HOME || "", platformFamily: "unix", platformOs: process.platform });
     return;
   }
   if (message.method === "thread/start") {
