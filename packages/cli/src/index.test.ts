@@ -27,6 +27,27 @@ test("auth-status is read-only and bypasses project config loading", async (t) =
   await assert.rejects(() => lstat(root.cache), { code: "ENOENT" });
 });
 
+test("factory-errors exposes a bounded snapshot/ack contract and fixed failures", async (t) => {
+  const root = await fixture(t);
+  const env = { HOME: root.home, XDG_STATE_HOME: join(root.home, "state"), XDG_CONFIG_HOME: join(root.home, "config") };
+  const snapshot = await runCli(root.home, root.cache, ["factory-errors"], env);
+  assert.equal(snapshot.code, 0, snapshot.stdout);
+  assert.deepEqual(JSON.parse(snapshot.stdout), {
+    status: "ok",
+    factoryRuntimeErrors: { schema_version: "1", cursor: 0, acknowledged_through: 0, records: [] },
+  });
+  const ack = await runCli(root.home, root.cache, ["factory-errors", "--action", "ack", "--cursor", "0"], env);
+  assert.equal(ack.code, 0, ack.stdout);
+  assert.deepEqual(JSON.parse(ack.stdout), { status: "ok", action: "ack", cursor: 0 });
+  const missing = await runCli(root.home, root.cache, ["factory-errors", "--action", "resolve"], env);
+  assert.equal(missing.code, 1);
+  assert.deepEqual(JSON.parse(missing.stdout), { status: "failed", errorCode: "FACTORY_RUNTIME_ERROR_STORE_UNAVAILABLE" });
+  assert.equal(missing.stdout.includes(root.home), false);
+  const reopenMissing = await runCli(root.home, root.cache, ["factory-errors", "--action", "reopen"], env);
+  assert.equal(reopenMissing.code, 1);
+  assert.deepEqual(JSON.parse(reopenMissing.stdout), { status: "failed", errorCode: "FACTORY_RUNTIME_ERROR_STORE_UNAVAILABLE" });
+});
+
 test("auth-recover rejects unknown strategy and missing confirmation before mutation", async (t) => {
   const root = await fixture(t);
   const unknown = await runCli(root.home, root.cache, ["auth-recover", "--session-id", "session-a", "--strategy", "not-a-strategy", "--confirm-no-running-processes"]);
@@ -96,6 +117,7 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-si
       presets: { status: string; configured: number; ready: number; notReady: number; notApplicable: number };
       modelPolicy: { status: string; source: string; modelConfigured: boolean };
       readOnlyDryRun: { status: string; workflow: string };
+      runtimeErrorStore: { status: string; collection: string; store: string; pending: number };
     };
   };
   assert.equal(payload.status, "ok");
@@ -132,6 +154,7 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-si
     },
     modelPolicy: { status: "ready", source: "explicit", modelConfigured: true, modelReasoningEffortConfigured: false },
     readOnlyDryRun: { status: "ready", workflow: "review" },
+    runtimeErrorStore: { status: "not_applicable", schemaVersion: "1", collection: "disabled", store: "absent", pending: 0 },
   });
   assert.equal("normalizedRequest" in payload, false);
   assert.doesNotMatch(result.stdout, new RegExp(root.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

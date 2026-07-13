@@ -36,6 +36,7 @@ export type {
 export * from "./config.js";
 export * from "./context.js";
 export * from "./generate.js";
+export * from "./factory-error-store.js";
 export * from "./paths.js";
 export * from "./presets.js";
 export * from "./profiles.js";

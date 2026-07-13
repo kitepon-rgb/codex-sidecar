@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { createDurableAuthSession, type DurableAuthSession } from "./durable-auth-session.js";
+import { captureDurableSidecarRuntimeError } from "./factory-error-store.js";
 import { beginRunExecutionWithResource } from "./run-control.js";
 import { RunStoreError, stableJson } from "./run-foundation.js";
 import { publishRecord, promoteResultToTerminal, readRecord } from "./run-records.js";
@@ -145,6 +146,7 @@ async function commitTerminalResult(
   });
   const durableResult = await readRecord(run.runDirectory, "result.json");
   if (!durableResult || durableResult.kind !== "result") throw new RunStoreError("RUN_STORE_CORRUPT", "durable work result disappeared before terminal commit");
+  if (result.error) await captureDurableSidecarRuntimeError(run.manifest.runId, result.error.code);
   const terminal = await promoteResultToTerminal(run.runDirectory, run.claim.generation, run.claim.token);
   if (terminal.resultDigest !== durableResult.digest || terminal.state !== terminalState) {
     throw new RunStoreError("RUN_STORE_CORRUPT", "durable work terminal does not bind its result");

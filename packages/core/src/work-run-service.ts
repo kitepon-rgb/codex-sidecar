@@ -1,4 +1,5 @@
 import { currentProcessIdentity } from "./process-identity.js";
+import { captureDurableSidecarRuntimeError } from "./factory-error-store.js";
 import { buildSidecarRequest } from "./requests.js";
 import { dryRunResult } from "./results.js";
 import { SIDECAR_RUN_ERROR_CODES, type SidecarConfig, type SidecarRunCancelResult, type SidecarRunErrorCode, type SidecarRunHandle, type SidecarRunOperationError, type SidecarRunPollResult, type SidecarRunStartResult } from "./types.js";
@@ -54,14 +55,14 @@ export async function startWorkRun(
     }
 
     const projection = await inspectStoredWorkRun(run, options.status);
-    if (projection.kind === "run_terminal" || projection.kind === "run_interrupted" || projection.kind === "run_error") return projection;
+    if (projection.kind === "run_terminal" || projection.kind === "run_interrupted" || projection.kind === "run_error") return observeDurableProjection(projection, run.manifest.runId);
     if (projection.phase !== "launch") return handleForPending(run, projection);
 
     const claimed = await acquireOrReclaimLaunchClaim(run);
     if (!await callerOwnsClaim(claimed)) return handleForPending(claimed, projection);
-    return launchRunWorker(claimed, options.workerEntrypoint ?? workerEntrypoint(), options.launch);
+    return observeDurableProjection(await launchRunWorker(claimed, options.workerEntrypoint ?? workerEntrypoint(), options.launch), run.manifest.runId);
   } catch (error) {
-    return operationError(error);
+    return observeDurableProjection(operationError(error), lookupObservationIdentity(input));
   }
 }
 
@@ -71,9 +72,9 @@ export async function getWorkRunResult(
   options: DurableRunStatusOptions = {},
 ): Promise<SidecarRunPollResult> {
   try {
-    return await inspectStoredWorkRun(await lookupStoredRun(input), options);
+    return observeDurableProjection(await inspectStoredWorkRun(await lookupStoredRun(input), options), lookupObservationIdentity(input));
   } catch (error) {
-    return operationError(error);
+    return observeDurableProjection(operationError(error), lookupObservationIdentity(input));
   }
 }
 
@@ -82,7 +83,7 @@ export async function cancelWorkRun(input: LookupInput): Promise<SidecarRunCance
   try {
     return await requestRunCancellation(await lookupStoredRun(input));
   } catch (error) {
-    return operationError(error);
+    return observeDurableProjection(operationError(error), lookupObservationIdentity(input));
   }
 }
 
@@ -143,4 +144,16 @@ function operationError(error: unknown): SidecarRunOperationError {
 
 function isRunErrorCode(value: string | undefined): value is SidecarRunErrorCode {
   return SIDECAR_RUN_ERROR_CODES.some((code) => code === value);
+}
+
+async function observeDurableProjection<T extends SidecarRunPollResult | SidecarRunStartResult>(result: T, identity: string): Promise<T> {
+  const errorCode = result.kind === "run_terminal" ? result.result.error?.code
+    : result.kind === "run_interrupted" || result.kind === "run_error" ? result.error.code
+      : undefined;
+  if (errorCode) await captureDurableSidecarRuntimeError(result.runId ?? identity, errorCode);
+  return result;
+}
+
+function lookupObservationIdentity(input: LookupInput | StartInput): string {
+  return stableJson({ projectRoot: input.projectRoot, idempotencyKey: input.idempotencyKey });
 }

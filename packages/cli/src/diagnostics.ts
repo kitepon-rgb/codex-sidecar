@@ -5,6 +5,7 @@ import {
   buildSidecarRequest,
   modelPolicyInfo,
   runSidecarRequest,
+  inspectSidecarRuntimeErrorStore,
   type SidecarConfig,
   type SidecarRequest,
   type SidecarResult,
@@ -27,6 +28,7 @@ export interface NativeFactoryReadiness {
   presets: { status: ReadinessStatus; configured: number; ready: number; notReady: number; notApplicable: number };
   modelPolicy: { status: ReadinessStatus; source?: "explicit" | "inherited"; modelConfigured?: boolean; modelReasoningEffortConfigured?: boolean };
   readOnlyDryRun: { status: ReadinessStatus; workflow?: SidecarWorkflow };
+  runtimeErrorStore: { status: ReadinessStatus; collection: "enabled" | "disabled" | "unverified"; store: "ready" | "absent" | "unverified"; pending: number };
 }
 
 export async function inspectNativeFactoryReadiness(
@@ -62,7 +64,17 @@ export async function inspectNativeFactoryReadiness(
     ? { status: resultSchema.status, workflow: request.workflow }
     : { status: request ? "not_applicable" as const : "not_ready" as const };
 
-  const checks = [packageVersions.status, resultSchema.status, workflows.status, presets.status, modelPolicy.status, readOnlyDryRun.status];
+  const errorStore = await inspectSidecarRuntimeErrorStore();
+  const runtimeErrorStore = {
+    status: errorStore.collection === "disabled"
+      ? "not_applicable" as const
+      : errorStore.collection === "enabled" && errorStore.store !== "unverified"
+        ? "ready" as const
+        : "unverified" as const,
+    ...errorStore,
+  };
+
+  const checks = [packageVersions.status, resultSchema.status, workflows.status, presets.status, modelPolicy.status, readOnlyDryRun.status, runtimeErrorStore.status];
   return {
     schemaVersion: "1",
     overall: overallStatus(checks),
@@ -72,6 +84,7 @@ export async function inspectNativeFactoryReadiness(
     presets,
     modelPolicy,
     readOnlyDryRun,
+    runtimeErrorStore,
   };
 }
 

@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.json && node --test dist/app-server-client.test.js dist/app-server-runner.test.js dist/auth-lease.test.js dist/config.test.js dist/context.test.js dist/durable-auth-session.test.js dist/generate.test.js dist/presets.test.js dist/process-group.test.js dist/run-control.test.js dist/run-records.test.js dist/run-store.test.js dist/run-launch.test.js dist/run-status.test.js dist/run-transition.test.js dist/run-types.test.js dist/run-worker.test.js dist/work-recovery.test.js dist/work-run-e2e.test.js dist/work-run-service.test.js dist/work-run-worker.test.js dist/safety.test.js dist/structured-output.test.js dist/work-auth-recovery.test.js dist/worktree.test.js dist/worktree-runner.test.js"
+    "test": "tsc -p tsconfig.json && node --test dist/app-server-client.test.js dist/app-server-runner.test.js dist/auth-lease.test.js dist/config.test.js dist/context.test.js dist/durable-auth-session.test.js dist/factory-error-store.test.js dist/generate.test.js dist/presets.test.js dist/process-group.test.js dist/run-control.test.js dist/run-records.test.js dist/run-store.test.js dist/run-launch.test.js dist/run-status.test.js dist/run-transition.test.js dist/run-types.test.js dist/run-worker.test.js dist/work-recovery.test.js dist/work-run-e2e.test.js dist/work-run-service.test.js dist/work-run-worker.test.js dist/safety.test.js dist/structured-output.test.js dist/work-auth-recovery.test.js dist/worktree.test.js dist/worktree-runner.test.js"
   },
   "dependencies": {
     "minimatch": "^10.0.1",

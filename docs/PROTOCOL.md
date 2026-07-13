@@ -171,6 +171,39 @@ timeouts, process exits, and protocol errors. The default log directory is
 git-ignored because entries can contain prompts, file paths, and raw local
 diagnostics.
 
+## Local Factory Runtime Errors
+
+`codex-sidecar-core` owns a separate aggregate runtime-error store for the
+private BugHub factory integration. Collection is fail-closed and starts only
+when the canonical dotagents factory reporter config contains the JSON boolean
+`collection.enabled: true`. The core never reads reporting credentials and
+never sends these records over the network.
+
+The capture boundary accepts only a closed set of existing Sidecar error codes.
+Each code maps to a fixed component, severity, and message template before it
+reaches storage. Raw exceptions, stderr/stdout, stacks, prompts, requests,
+paths, raw event logs, and arbitrary context are not accepted. Repeated errors
+increment one SHA-256 fingerprint aggregate. The owner-private atomic store has
+a monotonic cursor, explicit acknowledgement and resolution/reopen operations,
+and compaction never removes unacknowledged records.
+
+Durable run failures use an opaque SHA-256 observation ID so terminal commit,
+retry, and later poll reconciliation remain idempotent across crashes. The
+store never persists the source run ID or lookup input. Capture executes in a
+terminable worker; timeout ends that worker before the Sidecar result proceeds.
+
+`factory-diagnostics` exposes only bounded `runtimeErrorStore` readiness and a
+pending aggregate count. It does not expose the store/config path or record
+payloads. Store failure cannot replace a Sidecar result and is reported only by
+a fixed local stderr diagnostic.
+
+The machine consumer surface is `codex-sidecar factory-errors`. Its default
+action returns a bounded snapshot and cursor. `--action ack --cursor <n>` is
+called only after the matching report is accepted, while `resolve`, `reopen`,
+and `compact` are explicit local lifecycle operations. Command failures return the
+fixed `FACTORY_RUNTIME_ERROR_STORE_UNAVAILABLE` code without reflecting a path
+or storage exception.
+
 ## Timeout And Interruption
 
 `SidecarRequest.turnTimeoutMs` is the caller-selected App Server turn timeout in

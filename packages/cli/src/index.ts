@@ -22,6 +22,11 @@ import {
   inspectCurrentDurableAuthRecovery,
   recoverSyncDurableAuthSession,
   toSidecarError,
+  acknowledgeSidecarRuntimeErrors,
+  compactSidecarRuntimeErrors,
+  readSidecarRuntimeErrors,
+  reopenSidecarRuntimeError,
+  resolveSidecarRuntimeError,
   type AuthRecoveryStrategy,
   type ModelReasoningEffort,
   type SidecarRunErrorCode,
@@ -50,12 +55,16 @@ interface CliOptions {
   idempotencyKey?: string;
   baseRef?: string;
   workRecoveryAction?: "quarantine";
+  factoryErrorAction?: "snapshot" | "ack" | "resolve" | "reopen" | "compact";
+  factoryErrorCursor?: number;
+  factoryErrorFingerprint?: string;
 }
 
 type CliCommand =
   | SidecarWorkflow
   | "diagnostics"
   | "factory-diagnostics"
+  | "factory-errors"
   | "auth-status"
   | "auth-recover"
   | "work-start"
@@ -152,6 +161,26 @@ try {
     exit(0);
   }
 
+  if (parsed.workflow === "factory-errors") {
+    const action = parsed.factoryErrorAction ?? "snapshot";
+    if (action === "snapshot") {
+      printJson({ status: "ok", factoryRuntimeErrors: await readSidecarRuntimeErrors() });
+    } else if (action === "ack") {
+      if (parsed.factoryErrorCursor === undefined) throw new Error("--cursor is required for factory-errors --action ack");
+      await acknowledgeSidecarRuntimeErrors(parsed.factoryErrorCursor);
+      printJson({ status: "ok", action, cursor: parsed.factoryErrorCursor });
+    } else if (action === "resolve") {
+      if (!parsed.factoryErrorFingerprint) throw new Error("--fingerprint is required for factory-errors --action resolve");
+      printJson({ status: "ok", action, resolved: await resolveSidecarRuntimeError(parsed.factoryErrorFingerprint) });
+    } else if (action === "reopen") {
+      if (!parsed.factoryErrorFingerprint) throw new Error("--fingerprint is required for factory-errors --action reopen");
+      printJson({ status: "ok", action, reopened: await reopenSidecarRuntimeError(parsed.factoryErrorFingerprint) });
+    } else {
+      printJson({ status: "ok", action, removed: await compactSidecarRuntimeErrors() });
+    }
+    exit(0);
+  }
+
   if (parsed.workflow === "work-start") {
     const result = await startWorkRun(
       () => loadSidecarConfig(parsed.projectRoot, parsed.configFile),
@@ -220,7 +249,6 @@ try {
     printJson({ status: factoryReadiness.overall === "ready" ? "ok" : "failed", factoryReadiness });
     exit(factoryReadiness.overall === "ready" ? 0 : 1);
   }
-
   if (!isSidecarWorkflow(parsed.workflow)) throw new Error(`Unknown command: ${parsed.workflow}`);
   const result = await runSidecarRequest(config, {
     workflow: parsed.workflow,
@@ -240,6 +268,10 @@ try {
   printJson(result);
   exit(result.status === "failed" || result.status === "refused" ? 1 : 0);
 } catch (error) {
+  if (parsed.workflow === "factory-errors") {
+    printJson({ status: "failed", errorCode: "FACTORY_RUNTIME_ERROR_STORE_UNAVAILABLE" });
+    exit(1);
+  }
   if (parsed.workflow === "factory-diagnostics") {
     printJson({
       status: "failed",
@@ -361,8 +393,27 @@ function parseArgs(args: string[]): CliOptions {
 
     if (arg === "--action") {
       const action = requireValue(args, (index += 1), "--action");
-      if (action !== "quarantine") throw new Error("--action must be quarantine");
-      options.workRecoveryAction = action;
+      if (options.workflow === "factory-errors") {
+        if (action !== "snapshot" && action !== "ack" && action !== "resolve" && action !== "reopen" && action !== "compact") {
+          throw new Error("--action must be snapshot, ack, resolve, reopen, or compact for factory-errors");
+        }
+        options.factoryErrorAction = action;
+      } else {
+        if (action !== "quarantine") throw new Error("--action must be quarantine");
+        options.workRecoveryAction = action;
+      }
+      continue;
+    }
+
+    if (arg === "--cursor") {
+      options.factoryErrorCursor = parseNonNegativeInteger(requireValue(args, (index += 1), "--cursor"), "--cursor");
+      continue;
+    }
+
+    if (arg === "--fingerprint") {
+      const fingerprint = requireValue(args, (index += 1), "--fingerprint");
+      if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new Error("--fingerprint must be lowercase SHA-256");
+      options.factoryErrorFingerprint = fingerprint;
       continue;
     }
 
@@ -403,7 +454,7 @@ function readCliVersion(): string {
 }
 
 function isCommand(value: string): value is CliCommand {
-  return value === "diagnostics" || value === "factory-diagnostics" || value === "auth-status" || value === "auth-recover" ||
+  return value === "diagnostics" || value === "factory-diagnostics" || value === "factory-errors" || value === "auth-status" || value === "auth-recover" ||
     value === "work-start" || value === "work-result" || value === "work-cancel" ||
     value === "work-recover" || value === "work-auth-recover" ||
     (WORKFLOWS as readonly string[]).includes(value);
@@ -469,6 +520,12 @@ function parsePositiveInteger(value: string, option: string): number {
   return parsed;
 }
 
+function parseNonNegativeInteger(value: string, option: string): number {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) throw new Error(`${option} must be a non-negative safe integer`);
+  return parsed;
+}
+
 function parseModelReasoningEffort(value: string, option: string): ModelReasoningEffort {
   if (value === "low" || value === "medium" || value === "high" || value === "xhigh") {
     return value;
@@ -485,12 +542,13 @@ function parseAuthRecoveryStrategy(value: string): WorkAuthRecoveryStrategy {
 }
 
 function printUsage(): void {
-  console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics|factory-diagnostics|auth-status|auth-recover|work-start|work-result|work-cancel|work-recover|work-auth-recover> [options] [prompt]`);
+  console.error(`Usage: codex-sidecar <${WORKFLOWS.join("|")}|diagnostics|factory-diagnostics|factory-errors|auth-status|auth-recover|work-start|work-result|work-cancel|work-recover|work-auth-recover> [options] [prompt]`);
   console.error("Options: --project <dir> | --project-root <dir> --config <file> --preset <name> --output-contract <text> --output-contract-file <file> --model <model> --model-reasoning-effort <effort> --context-file <json> --dry-run --json --turn-timeout-ms <ms> --no-interrupt-on-timeout --remove-worktree");
   console.error("Async work: work-start --idempotency-key <key> [--base-ref <ref>]; work-result|work-cancel|work-recover|work-auth-recover --idempotency-key <key>");
   console.error("Work recovery: work-recover [--action quarantine --confirm-no-running-processes]");
   console.error("Work auth recovery: work-auth-recover [--strategy <strategy> --confirm-no-running-processes]");
   console.error("Auth recovery: auth-recover --session-id <id> --strategy <write-back-run-local|keep-canonical-after-login|release-never-started|release-clean> --confirm-no-running-processes");
+  console.error("Factory errors: factory-errors [--action snapshot|ack|resolve|reopen|compact] [--cursor <n>] [--fingerprint <sha256>]");
 }
 
 function printJson(value: unknown): void {
