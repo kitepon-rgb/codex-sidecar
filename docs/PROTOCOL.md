@@ -200,9 +200,17 @@ a fixed local stderr diagnostic.
 The machine consumer surface is `codex-sidecar factory-errors`. Its default
 action returns a bounded snapshot and cursor. `--action ack --cursor <n>` is
 called only after the matching report is accepted, while `resolve`, `reopen`,
-and `compact` are explicit local lifecycle operations. Command failures return the
+and `compact` are explicit local lifecycle operations. Resolved records carry
+only canonical `resolved_at` and fixed `reason_code=operator_resolved`; reopening
+or a new occurrence clears both fields. Command failures return the
 fixed `FACTORY_RUNTIME_ERROR_STORE_UNAVAILABLE` code without reflecting a path
 or storage exception.
+
+Runtime store schema v2 adds explicit resolution metadata. A strict v1 reader
+migrates old open records without changing their aggregate. Because v1 did not
+store a resolution timestamp, old resolved records are conservatively reopened
+at a new sequence instead of fabricating history; the next accepted factory
+report can then establish their real lifecycle.
 
 ## Timeout And Interruption
 

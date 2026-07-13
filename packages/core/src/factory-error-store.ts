@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Worker } from "node:worker_threads";
 
-const SCHEMA_VERSION = "1" as const;
+const SCHEMA_VERSION = "2" as const;
 const DIR_MODE = 0o700;
 const FILE_MODE = 0o600;
 const DEFAULT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
@@ -36,6 +36,8 @@ export interface FactoryErrorRecord {
   os: string;
   arch: string;
   status: FactoryErrorStatus;
+  resolved_at: string | null;
+  reason_code: "operator_resolved" | null;
   sequence: number;
 }
 
@@ -157,6 +159,8 @@ export async function captureSidecarRuntimeErrorOwned(
         existing.occurrence_count += 1;
         existing.last_seen = now;
         existing.status = "open";
+        existing.resolved_at = null;
+        existing.reason_code = null;
         existing.sequence = sequence;
       } else {
         store.records.push({
@@ -173,6 +177,8 @@ export async function captureSidecarRuntimeErrorOwned(
           os: platform(),
           arch: arch(),
           status: "open",
+          resolved_at: null,
+          reason_code: null,
           sequence,
         });
       }
@@ -201,6 +207,8 @@ export async function resolveSidecarRuntimeError(
     const record = store.records.find((candidate) => candidate.fingerprint === fingerprint);
     if (!record || record.status === "resolved") return;
     record.status = "resolved";
+    record.resolved_at = (options.now ?? (() => new Date()))().toISOString();
+    record.reason_code = "operator_resolved";
     record.sequence = store.next_sequence++;
     changed = true;
   });
@@ -217,6 +225,8 @@ export async function reopenSidecarRuntimeError(
     const record = store.records.find((candidate) => candidate.fingerprint === fingerprint);
     if (!record || record.status === "open") return;
     record.status = "open";
+    record.resolved_at = null;
+    record.reason_code = null;
     record.sequence = store.next_sequence++;
     changed = true;
   });
@@ -326,7 +336,7 @@ async function readStore(path: string, absentAsEmpty: boolean): Promise<FactoryE
     await assertPrivateFile(path, info);
     const bytes = await withTimeout(readFile(path, "utf8"), IO_TIMEOUT_MS);
     if (Buffer.byteLength(bytes, "utf8") > MAX_STORE_BYTES) throw new Error("factory error store exceeds size limit");
-    const store = JSON.parse(bytes) as FactoryErrorStore;
+    const store = migrateLegacyStore(JSON.parse(bytes) as unknown);
     validateStore(store);
     return store;
   } catch (error) {
@@ -338,6 +348,42 @@ async function readStore(path: string, absentAsEmpty: boolean): Promise<FactoryE
 
 function emptyStore(): FactoryErrorStore {
   return { schema_version: SCHEMA_VERSION, product: "codex-sidecar", next_sequence: 1, acknowledged_through: 0, records: [], observations: [] };
+}
+
+function migrateLegacyStore(value: unknown): FactoryErrorStore {
+  if (!isRecord(value) || value.schema_version !== "1") return value as FactoryErrorStore;
+  if (!exactKeys(value, ["schema_version", "product", "next_sequence", "acknowledged_through", "records", "observations"])
+    || value.product !== "codex-sidecar" || !Number.isSafeInteger(value.next_sequence)
+    || !Array.isArray(value.records) || !Array.isArray(value.observations)) {
+    throw new Error("invalid legacy factory error store");
+  }
+  const legacyKeys = [
+    "arch", "component", "error_code", "fingerprint", "first_seen", "last_seen", "message_template", "occurrence_count",
+    "os", "product_version", "sequence", "severity", "state_schema_version", "status",
+  ];
+  let nextSequence = value.next_sequence as number;
+  const records = value.records.map((record) => {
+    if (!isRecord(record) || !exactKeys(record, legacyKeys) || record.state_schema_version !== "1") {
+      throw new Error("invalid legacy factory error record");
+    }
+    const wasResolved = record.status === "resolved";
+    return {
+      ...record,
+      state_schema_version: SCHEMA_VERSION,
+      status: wasResolved ? "open" : record.status,
+      resolved_at: null,
+      reason_code: null,
+      sequence: wasResolved ? nextSequence++ : record.sequence,
+    } as FactoryErrorRecord;
+  });
+  return {
+    schema_version: SCHEMA_VERSION,
+    product: "codex-sidecar",
+    next_sequence: nextSequence,
+    acknowledged_through: value.acknowledged_through as number,
+    records,
+    observations: value.observations as FactoryErrorStore["observations"],
+  };
 }
 
 function validateStore(value: FactoryErrorStore): void {
@@ -352,7 +398,7 @@ function validateStore(value: FactoryErrorStore): void {
   for (const record of value.records) {
     if (!isRecord(record) || Object.keys(record).sort().join(",") !== [
       "arch", "component", "error_code", "fingerprint", "first_seen", "last_seen", "message_template", "occurrence_count",
-      "os", "product_version", "sequence", "severity", "state_schema_version", "status",
+      "os", "product_version", "reason_code", "resolved_at", "sequence", "severity", "state_schema_version", "status",
     ].sort().join(",") || !Object.hasOwn(DEFINITIONS, String(record.error_code)) ||
       !Number.isSafeInteger(record.sequence) || record.sequence < 1 || record.sequence >= value.next_sequence ||
       !Number.isSafeInteger(record.occurrence_count) || record.occurrence_count < 1 ||
@@ -369,6 +415,10 @@ function validateStore(value: FactoryErrorStore): void {
         typeof record.arch !== "string" || !/^[A-Za-z0-9_-]{1,32}$/.test(record.arch) ||
         !isCanonicalUtc(record.first_seen) || !isCanonicalUtc(record.last_seen) ||
         Date.parse(record.first_seen) > Date.parse(record.last_seen) ||
+        (record.status === "open" && (record.resolved_at !== null || record.reason_code !== null)) ||
+        (record.status === "resolved" && (!isCanonicalUtc(record.resolved_at)
+          || Date.parse(record.resolved_at) < Date.parse(record.last_seen)
+          || record.reason_code !== "operator_resolved")) ||
         fingerprints.has(record.fingerprint) || sequences.has(record.sequence)) {
       throw new Error("invalid factory error record");
     }

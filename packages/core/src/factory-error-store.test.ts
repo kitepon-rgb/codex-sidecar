@@ -67,8 +67,13 @@ test("resolve, acknowledge, compact, and reopen preserve the cursor contract", a
   assert.equal(await resolveSidecarRuntimeError(captured.fingerprint!, options), true);
   let snapshot = await readSidecarRuntimeErrors(options);
   assert.equal(snapshot.records[0].status, "resolved");
+  assert.equal(snapshot.records[0].resolved_at, old.toISOString());
+  assert.equal(snapshot.records[0].reason_code, "operator_resolved");
   assert.equal(await reopenSidecarRuntimeError(captured.fingerprint!, options), true);
-  assert.equal((await readSidecarRuntimeErrors(options)).records[0].status, "open");
+  const reopened = (await readSidecarRuntimeErrors(options)).records[0];
+  assert.equal(reopened.status, "open");
+  assert.equal(reopened.resolved_at, null);
+  assert.equal(reopened.reason_code, null);
   assert.equal(await resolveSidecarRuntimeError(captured.fingerprint!, options), true);
   snapshot = await readSidecarRuntimeErrors(options);
   assert.equal(await compactSidecarRuntimeErrors({ ...options, now: () => new Date("2026-03-01T00:00:00.000Z"), retentionMs: 1 }), 0);
@@ -81,6 +86,39 @@ test("resolve, acknowledge, compact, and reopen preserve the cursor contract", a
   assert(snapshot.cursor > 2);
 });
 
+test("resolve rejects a timestamp earlier than the last observation", async () => {
+  const options = { ...await fixture(), now: () => new Date("2026-07-13T00:00:05.000Z") };
+  const captured = await captureSidecarRuntimeError("RUN_STORE_CORRUPT", options);
+  await assert.rejects(resolveSidecarRuntimeError(captured.fingerprint!, {
+    ...options, now: () => new Date("2026-07-13T00:00:00.000Z"),
+  }));
+  assert.equal((await readSidecarRuntimeErrors(options)).records[0].status, "open");
+});
+
+test("legacy v1 records migrate strictly without inventing a resolution timestamp", async () => {
+  const options = { ...await fixture(), now: () => new Date("2026-07-13T00:00:05.000Z") };
+  await captureSidecarRuntimeError("RUN_STORE_CORRUPT", options);
+  const legacy = JSON.parse(await readFile(options.storePath, "utf8"));
+  legacy.schema_version = "1";
+  legacy.records[0].state_schema_version = "1";
+  legacy.records[0].status = "resolved";
+  delete legacy.records[0].resolved_at;
+  delete legacy.records[0].reason_code;
+  await writeFile(options.storePath, `${JSON.stringify(legacy)}\n`, { mode: 0o600 });
+
+  const migrated = await readSidecarRuntimeErrors(options);
+  assert.equal(migrated.schema_version, "2");
+  assert.equal(migrated.records[0].status, "open");
+  assert.equal(migrated.records[0].resolved_at, null);
+  assert.equal(migrated.records[0].reason_code, null);
+  assert.equal(migrated.records[0].sequence, 2);
+  assert.equal(migrated.cursor, 2);
+
+  await acknowledgeSidecarRuntimeErrors(migrated.cursor, options);
+  const persisted = JSON.parse(await readFile(options.storePath, "utf8"));
+  assert.equal(persisted.schema_version, "2");
+});
+
 test("private modes, atomic replacement, and bounded diagnostics", { skip: process.platform === "win32" }, async () => {
   const options = await fixture();
   await captureSidecarRuntimeError("APP_SERVER_TIMEOUT", options);
@@ -88,7 +126,7 @@ test("private modes, atomic replacement, and bounded diagnostics", { skip: proce
   assert.equal((await stat(options.storePath)).mode & 0o777, 0o600);
   assert.deepEqual((await readdir(join(options.root, "state"))).sort(), ["errors.json", "errors.json.lock.sqlite"]);
   assert.deepEqual(await inspectSidecarRuntimeErrorStore(options), {
-    schemaVersion: "1",
+    schemaVersion: "2",
     collection: "enabled",
     store: "ready",
     pending: 1,

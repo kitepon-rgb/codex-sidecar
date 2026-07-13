@@ -15,7 +15,8 @@ thin and the public `SidecarResult` contract remains unchanged.
   error code, fixed message template, severity, SHA-256 fingerprint, count,
   first/last seen, state schema version, OS/arch, status, and sequence. Durable
   retries may additionally persist only opaque SHA-256 observation IDs bound to
-  those aggregates; raw run IDs and inputs are never stored or projected. The
+  those aggregates; an explicit resolution adds only canonical `resolved_at`
+  and fixed `reason_code`. Raw run IDs and inputs are never stored or projected. The
   ledger is capped at 1,024 entries and 1 MiB; overflow fails that observation
   closed without making the existing store unreadable.
 - Reject exception objects, stderr/stdout, stacks, prompts, requests,
@@ -34,6 +35,9 @@ thin and the public `SidecarResult` contract remains unchanged.
   a bounded in-process queue with an end-to-end enqueue deadline. Every capture
   receives an opaque receipt ID; after forced worker termination the parent
   checks the private ledger so a committed record is never reported as failed.
+- Store schema v2 strictly migrates v1. Old open aggregates are preserved; old
+  resolved records are reopened at a new sequence because v1 has no truthful
+  resolution timestamp to migrate.
 
 ## TODO
 
