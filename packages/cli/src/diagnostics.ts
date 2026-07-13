@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { resolveMcpCommandInHelper } from "./windows-command-resolver.js";
 import {
   WORKFLOWS,
   buildSidecarRequest,
@@ -104,34 +105,41 @@ async function inspectPackageVersions(): Promise<NativeFactoryReadiness["package
   return { status: cli === core && core === mcp ? "ready" : "not_ready", packages };
 }
 
-async function mcpPackageVersion(): Promise<string | undefined> {
+export async function mcpPackageVersion({ deadlineAt = Date.now() + 3_000, resolveCommand = resolveMcpCommandInHelper, spawnProcess = spawn }: { deadlineAt?: number; resolveCommand?: typeof resolveMcpCommandInHelper; spawnProcess?: typeof spawn } = {}): Promise<string | undefined> {
+  const resolved = await resolveCommand(deadlineAt);
+  if (!resolved) return undefined;
+  const remaining = deadlineAt - Date.now();
+  if (remaining <= 0) return undefined;
   return new Promise((resolve) => {
-    const child = spawn("codex-sidecar-mcp", [], {
+    let child; try { child = spawnProcess(resolved.command, resolved.args, {
       stdio: ["pipe", "pipe", "ignore"],
       windowsHide: true,
-    });
+    }); } catch { resolve(undefined); return; }
     let stdout = "";
     let settled = false;
+    const onStdout = (chunk: string) => {
+      if (settled) return;
+      stdout += chunk;
+      if (Buffer.byteLength(stdout, "utf8") > 65_536) finish(undefined);
+    };
+    const onStdinError = () => finish(undefined);
     const finish = (value: string | undefined) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      child.stdout.off("data", onStdout);
+      child.stdout.destroy();
+      child.stdin.destroy();
+      if (!child.killed) child.kill();
       resolve(value);
     };
-    const timer = setTimeout(() => {
-      child.kill();
-      finish(undefined);
-    }, 3_000);
+    const timer = setTimeout(() => finish(undefined), remaining);
     child.once("error", () => finish(undefined));
+    child.stdout.once("error", () => finish(undefined));
     child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-      if (stdout.length > 65_536) {
-        child.kill();
-        finish(undefined);
-      }
-    });
+    child.stdout.on("data", onStdout);
     child.once("close", () => {
+      if (settled) return;
       try {
         const response = stdout.trim().split("\n")
           .map((line) => JSON.parse(line) as unknown)
@@ -144,7 +152,8 @@ async function mcpPackageVersion(): Promise<string | undefined> {
         finish(undefined);
       }
     });
-    child.stdin.end(`${JSON.stringify({
+    child.stdin.once("error", onStdinError);
+    try { child.stdin.end(`${JSON.stringify({
       jsonrpc: "2.0",
       id: 1,
       method: "initialize",
@@ -153,7 +162,7 @@ async function mcpPackageVersion(): Promise<string | undefined> {
         capabilities: {},
         clientInfo: { name: "codex-sidecar-factory-diagnostics", version: "1.0.0" },
       },
-    })}\n`);
+    })}\n`); } catch { finish(undefined); }
   });
 }
 

@@ -1,13 +1,32 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
+import { mcpPackageVersion } from "./diagnostics.js";
+import { resolveMcpCommand, resolveMcpCommandInHelper } from "./windows-command-resolver.js";
 
 const exec = promisify(execFile);
 const key = "abcdefghijklmnopqrstuv";
+
+type FakeHelper = EventEmitter & {
+  killed: boolean;
+  kill: () => boolean;
+  stdin: EventEmitter & { destroy: () => void; end: (input: string) => void };
+  stdout: EventEmitter & { destroy: () => void; setEncoding: (encoding: string) => void };
+};
+
+function fakeHelper(): FakeHelper {
+  const child = new EventEmitter() as FakeHelper;
+  child.killed = false;
+  child.kill = () => { child.killed = true; return true; };
+  child.stdin = Object.assign(new EventEmitter(), { destroy: () => undefined, end: () => undefined });
+  child.stdout = Object.assign(new EventEmitter(), { destroy: () => undefined, setEncoding: () => undefined });
+  return child;
+}
 
 test("--version prints the packaged CLI version without config or cache access", async (t) => {
   const root = await fixture(t);
@@ -85,7 +104,7 @@ test("factory-diagnostics returns native readiness without exposing request or f
   const mcp = join(bin, "codex-sidecar-mcp");
   await writeFile(mcp, `#!/bin/sh
 read request
-printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-sidecar","version":"0.3.6"}}}'
+printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-sidecar","version":"0.3.7"}}}'
 `);
   await chmod(mcp, 0o755);
   const context = join(root.repo, "context.json");
@@ -103,7 +122,11 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-si
 
   const result = await runCli(root.home, root.cache, [
     "factory-diagnostics", "--project", root.repo, "--preset", "review", "--context-file", context,
-  ], { PATH: `${bin}:${process.env.PATH}` });
+  ], {
+    PATH: `${bin}:${process.env.PATH}`,
+    XDG_STATE_HOME: join(root.home, "state"),
+    FACTORY_REPORTER_CONFIG: join(root.home, "missing-factory-reporter.json"),
+  });
 
   assert.equal(result.code, 0, result.stdout);
   const payload = JSON.parse(result.stdout) as {
@@ -127,9 +150,9 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-si
     packageVersions: {
       status: "ready",
       packages: {
-        cli: "0.3.6",
-        core: "0.3.6",
-        mcp: "0.3.6",
+        cli: "0.3.7",
+        core: "0.3.7",
+        mcp: "0.3.7",
       },
     },
     resultSchema: { status: "ready" },
@@ -172,6 +195,249 @@ test("factory-diagnostics reports configuration failure as unverified without ex
     errorCode: "PROTOCOL_ERROR",
   });
   assert.doesNotMatch(result.stdout, new RegExp(root.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("Windows factory diagnostics resolves only a verified npm cmd shim to its Node entrypoint", async () => {
+  const shim = "C:\\npm\\codex-sidecar-mcp.cmd";
+  const directory = "C:\\npm";
+  const entrypoint = "C:\\npm\\node_modules\\codex-sidecar-mcp\\dist\\server.js";
+  const files = new Map<string, { file: boolean; symlink: boolean }>([
+    [shim, { file: true, symlink: false }],
+    [entrypoint, { file: true, symlink: false }],
+  ]);
+  const shimText = [
+    "@ECHO off", "GOTO start", ":find_dp0", "SET dp0=%~dp0", "EXIT /b", ":start", "SETLOCAL", "CALL :find_dp0", "",
+    "IF EXIST \"%dp0%\\node.exe\" (", "  SET \"_prog=%dp0%\\node.exe\"", ") ELSE (", "  SET \"_prog=node\"", "  SET PATHEXT=%PATHEXT:;.JS;=;%", ")", "",
+    "endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & \"%_prog%\"  \"%dp0%\\node_modules\\codex-sidecar-mcp\\dist\\server.js\" %*", "",
+  ].join("\r\n");
+  const fs = {
+    lstat: async (path: string) => {
+      const value = files.get(path);
+      if (!value) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+      return { isFile: () => value.file, isSymbolicLink: () => value.symlink };
+    },
+    readFile: async (path: string) => {
+      assert.equal(path, shim);
+      return shimText;
+    },
+    realpath: async (path: string) => path,
+  };
+  const resolved = await resolveMcpCommand({
+    platform: "win32",
+    env: { Path: directory, PATHEXT: ".PS1;.CMD;.EXE" },
+    fs: fs as never,
+    pathModule: win32,
+    nodePath: "C:\\node\\node.exe",
+  });
+  assert.deepEqual(resolved, { command: "C:\\node\\node.exe", args: [entrypoint] });
+});
+
+test("Windows factory diagnostics accepts the one-space npm cmd shim variant", async () => {
+  const shim = "C:\\npm\\codex-sidecar-mcp.cmd";
+  const entrypoint = "C:\\npm\\node_modules\\codex-sidecar-mcp\\dist\\server.js";
+  const shimText = [
+    "@ECHO off", "GOTO start", ":find_dp0", "SET dp0=%~dp0", "EXIT /b", ":start", "SETLOCAL", "CALL :find_dp0", "",
+    "IF EXIST \"%dp0%\\node.exe\" (", " SET \"_prog=%dp0%\\node.exe\"", ") ELSE (", " SET \"_prog=node\"", ")", "",
+    "endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & set PATHEXT=%PATHEXT:;.JS;=;% & \"%_prog%\" \"%dp0%\\node_modules\\codex-sidecar-mcp\\dist\\server.js\" %*", "",
+  ].join("\r\n");
+  const fs = {
+    lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+    readFile: async () => shimText,
+    realpath: async (path: string) => path,
+  };
+  assert.deepEqual(await resolveMcpCommand({ platform: "win32", env: { PATH: "C:\\npm", PATHEXT: ".CMD" }, fs: fs as never, pathModule: win32, nodePath: "C:\\node\\node.exe" }), { command: "C:\\node\\node.exe", args: [entrypoint] });
+});
+
+test("Windows resolver rejects an oversized shim before reading it", async () => {
+  let reads = 0;
+  const resolved = await resolveMcpCommand({ platform: "win32", env: { PATH: "C:\\npm", PATHEXT: ".CMD" }, pathModule: win32, fs: {
+    lstat: async () => ({ size: 4_097, isFile: () => true, isSymbolicLink: () => false }),
+    readFile: async () => { reads += 1; return ""; }, realpath: async (path: string) => path,
+  } as never });
+  assert.equal(resolved, undefined);
+  assert.equal(reads, 0);
+});
+
+test("Windows resolver rejects a directory junction canonicalized to UNC before probing a shim", async () => {
+  let probes = 0;
+  const resolved = await resolveMcpCommand({ platform: "win32", env: { PATH: "C:\\npm", PATHEXT: ".EXE" }, pathModule: win32, fs: {
+    lstat: async () => { probes += 1; return { isFile: () => true, isSymbolicLink: () => false }; },
+    readFile: async () => "", realpath: async () => "\\\\server\\share",
+  } as never });
+  assert.equal(resolved, undefined);
+  assert.equal(probes, 0);
+});
+
+test("Windows resolver skips a missing PATH directory before a valid canonical exe", async () => {
+  const missingDirectory = "C:\\missing";
+  const directory = "C:\\npm";
+  const exe = "C:\\npm\\codex-sidecar-mcp.exe";
+  const resolved = await resolveMcpCommand({ platform: "win32", env: { PATH: `${missingDirectory};${directory}`, PATHEXT: ".EXE" }, pathModule: win32, fs: {
+    lstat: async (path: string) => {
+      assert.equal(path, exe);
+      return { isFile: () => true, isSymbolicLink: () => false };
+    },
+    readFile: async () => "",
+    realpath: async (path: string) => {
+      if (path === missingDirectory) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+      return path;
+    },
+  } as never });
+  assert.deepEqual(resolved, { command: exe, args: [] });
+});
+
+test("Windows resolver returns only the canonical local exe path", async () => {
+  const directory = "C:\\npm";
+  const canonicalDirectory = "C:\\canonical-npm";
+  const canonicalExe = "C:\\canonical-npm\\codex-sidecar-mcp.exe";
+  const resolved = await resolveMcpCommand({ platform: "win32", env: { PATH: directory, PATHEXT: ".EXE" }, pathModule: win32, fs: {
+    lstat: async (path: string) => {
+      assert.equal(path, canonicalExe);
+      return { isFile: () => true, isSymbolicLink: () => false };
+    },
+    readFile: async () => "", realpath: async (path: string) => path === directory ? canonicalDirectory : canonicalExe,
+  } as never });
+  assert.deepEqual(resolved, { command: canonicalExe, args: [] });
+});
+
+test("Windows resolver rejects a cmd shim whose canonical entrypoint is UNC", async () => {
+  const shim = "C:\\npm\\codex-sidecar-mcp.cmd";
+  const entry = "C:\\npm\\node_modules\\codex-sidecar-mcp\\dist\\server.js";
+  const source = [
+    "@ECHO off", "GOTO start", ":find_dp0", "SET dp0=%~dp0", "EXIT /b", ":start", "SETLOCAL", "CALL :find_dp0", "",
+    "IF EXIST \"%dp0%\\node.exe\" (", "  SET \"_prog=%dp0%\\node.exe\"", ") ELSE (", "  SET \"_prog=node\"", "  SET PATHEXT=%PATHEXT:;.JS;=;%", ")", "",
+    "endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & \"%_prog%\"  \"%dp0%\\node_modules\\codex-sidecar-mcp\\dist\\server.js\" %*", "",
+  ].join("\r\n");
+  const resolved = await resolveMcpCommand({ platform: "win32", env: { PATH: "C:\\npm", PATHEXT: ".CMD" }, pathModule: win32, fs: {
+    lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }), readFile: async () => source,
+    realpath: async (path: string) => path === entry ? "\\\\server\\share\\server.js" : path,
+  } as never });
+  assert.equal(resolved, undefined);
+  assert.equal(shim.endsWith(".cmd"), true);
+});
+
+test("Windows resolver helper kills and rejects oversized or malformed output", async () => {
+  const oversized = fakeHelper();
+  const oversizedResult = resolveMcpCommandInHelper(Date.now() + 1_000, { spawnProcess: (() => oversized) as never });
+  oversized.stdout.emit("data", "x".repeat(4_097));
+  assert.equal(await oversizedResult, undefined);
+  assert.equal(oversized.killed, true);
+
+  const malformed = fakeHelper();
+  const malformedResult = resolveMcpCommandInHelper(Date.now() + 1_000, { spawnProcess: (() => malformed) as never });
+  malformed.stdout.emit("data", '{"status":"ok","command":"node","args":[],"unexpected":true}');
+  malformed.emit("close", 0);
+  assert.equal(await malformedResult, undefined);
+  assert.equal(malformed.killed, true);
+});
+
+test("Windows resolver helper kills an unresponsive UNC filesystem probe at its deadline", async () => {
+  const child = fakeHelper();
+  const result = resolveMcpCommandInHelper(Date.now() + 25, { spawnProcess: (() => child) as never, environment: { PATH: "\\\\server\\share" } });
+  assert.equal(await result, undefined);
+  assert.equal(child.killed, true);
+});
+
+test("Windows resolver rejects oversized helper input before spawning", async () => {
+  let spawns = 0;
+  const resolved = await resolveMcpCommandInHelper(Date.now() + 1_000, {
+    spawnProcess: (() => { spawns += 1; return fakeHelper(); }) as never,
+    environment: { PATH: "C:\\x;".repeat(300_000), PATHEXT: ".CMD" },
+  });
+  assert.equal(resolved, undefined);
+  assert.equal(spawns, 0);
+});
+
+test("Windows resolver treats helper stdin EPIPE as an unavailable command", async () => {
+  const child = fakeHelper();
+  const result = resolveMcpCommandInHelper(Date.now() + 1_000, { spawnProcess: (() => child) as never });
+  child.stdin.emit("error", Object.assign(new Error("broken pipe"), { code: "EPIPE" }));
+  assert.equal(await result, undefined);
+  assert.equal(child.killed, true);
+});
+
+test("factory MCP probe stops collecting stdout and destroys the stream after its cap", async () => {
+  const child = fakeHelper();
+  let destroyed = 0;
+  child.stdout.destroy = () => { destroyed += 1; };
+  const result = mcpPackageVersion({ deadlineAt: Date.now() + 1_000, resolveCommand: async () => ({ command: "mcp", args: [] }), spawnProcess: (() => child) as never });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  child.stdout.emit("data", "x".repeat(65_537));
+  assert.equal(await result, undefined);
+  child.stdout.emit("data", "still-not-collected");
+  assert.equal(child.stdout.listenerCount("data"), 0);
+  assert.equal(destroyed, 1);
+  assert.equal(child.killed, true);
+});
+
+test("factory MCP probe treats an immediate exit as unavailable", async () => {
+  const child = fakeHelper();
+  const result = mcpPackageVersion({ deadlineAt: Date.now() + 1_000, resolveCommand: async () => ({ command: "mcp", args: [] }), spawnProcess: (() => child) as never });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  child.emit("close", 1);
+  assert.equal(await result, undefined);
+  assert.equal(child.killed, true);
+});
+
+test("factory MCP probe treats stdin EPIPE as unavailable", async () => {
+  const child = fakeHelper();
+  const result = mcpPackageVersion({ deadlineAt: Date.now() + 1_000, resolveCommand: async () => ({ command: "mcp", args: [] }), spawnProcess: (() => child) as never });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  child.stdin.emit("error", Object.assign(new Error("broken pipe"), { code: "EPIPE" }));
+  assert.equal(await result, undefined);
+  assert.equal(child.killed, true);
+});
+
+test("Windows resolver never spawns a helper after the deadline", async () => {
+  let spawns = 0;
+  const resolved = await resolveMcpCommandInHelper(Date.now() - 1, { spawnProcess: (() => { spawns += 1; return fakeHelper(); }) as never });
+  assert.equal(resolved, undefined);
+  assert.equal(spawns, 0);
+});
+
+test("Windows factory diagnostics rejects a npm cmd shim whose entrypoint leaves node_modules", async () => {
+  const shim = "C:\\npm\\codex-sidecar-mcp.cmd";
+  const fs = {
+    lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }),
+    readFile: async () => [
+      "@ECHO off", "GOTO start", ":find_dp0", "SET dp0=%~dp0", "EXIT /b", ":start", "SETLOCAL", "CALL :find_dp0", "",
+      "IF EXIST \"%dp0%\\node.exe\" (", "  SET \"_prog=%dp0%\\node.exe\"", ") ELSE (", "  SET \"_prog=node\"", "  SET PATHEXT=%PATHEXT:;.JS;=;%", ")", "",
+      "endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & \"%_prog%\"  \"%dp0%\\node_modules\\..\\escape.js\" %*", "",
+    ].join("\r\n"),
+    realpath: async (path: string) => path === shim ? "C:\\npm" : "C:\\escape.js",
+  };
+  const resolved = await resolveMcpCommand({
+    platform: "win32",
+    env: { PATH: "C:\\npm", PATHEXT: ".CMD" },
+    fs: fs as never,
+    pathModule: win32,
+  });
+  assert.equal(resolved, undefined);
+});
+
+test("Windows resolver honors PATHEXT case, skips non-executable extensions, and accepts exe", async () => {
+  const exe = "C:\\npm\\codex-sidecar-mcp.exe";
+  const resolved = await resolveMcpCommand({ platform: "win32", env: { pAtH: "C:\\npm", pAtHeXt: ".COM;.eXe;.CMD" }, pathModule: win32, fs: {
+    lstat: async (path: string) => path === exe ? { isFile: () => true, isSymbolicLink: () => false } : Promise.reject(Object.assign(new Error(), { code: "ENOENT" })),
+    readFile: async () => "", realpath: async (path: string) => path,
+  } as never });
+  assert.deepEqual(resolved, { command: exe, args: [] });
+});
+
+test("Windows resolver rejects invalid PATHEXT, access errors, non-local paths, and reparse points", async () => {
+  const normal = { isFile: () => true, isSymbolicLink: () => false };
+  const rejected = async (env: NodeJS.ProcessEnv, fs: object) => assert.equal(await resolveMcpCommand({ platform: "win32", env, pathModule: win32, fs: fs as never }), undefined);
+  await rejected({ PATH: "C:\\npm", PATHEXT: ".CMD;bad" }, { lstat: async () => normal, readFile: async () => "", realpath: async (p: string) => p });
+  await rejected({ PATH: "C:\\npm", PATHEXT: ".CMD" }, { lstat: async () => { throw Object.assign(new Error(), { code: "EACCES" }); }, readFile: async () => "", realpath: async (p: string) => p });
+  for (const path of ["npm", "\\npm", "\\\\server\\share", "\\\\?\\C:\\npm"]) await rejected({ PATH: path, PATHEXT: ".CMD" }, { lstat: async () => normal, readFile: async () => "", realpath: async (p: string) => p });
+  await rejected({ PATH: "C:\\npm", PATHEXT: ".CMD" }, { lstat: async () => ({ isFile: () => true, isSymbolicLink: () => true }), readFile: async () => "", realpath: async (p: string) => p });
+});
+
+test("Windows resolver rejects mixed npm shim variants and entrypoint reparse points", async () => {
+  const shim = "C:\\npm\\codex-sidecar-mcp.cmd";
+  const mixed = ["@ECHO off", "GOTO start", ":find_dp0", "SET dp0=%~dp0", "EXIT /b", ":start", "SETLOCAL", "CALL :find_dp0", "", "IF EXIST \"%dp0%\\node.exe\" (", " SET \"_prog=%dp0%\\node.exe\"", ") ELSE (", " SET \"_prog=node\"", " SET PATHEXT=%PATHEXT:;.JS;=;%", ")", "", "endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & \"%_prog%\"  \"%dp0%\\node_modules\\codex-sidecar-mcp\\dist\\server.js\" %*"].join("\n");
+  const fs = { lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }), readFile: async () => mixed, realpath: async (path: string) => path };
+  assert.equal(await resolveMcpCommand({ platform: "win32", env: { PATH: "C:\\npm", PATHEXT: ".CMD" }, pathModule: win32, fs: fs as never }), undefined);
 });
 
 test("async work CLI uses project-root plus idempotency key for start, result, cancel, and inspection", async (t) => {
@@ -278,7 +544,7 @@ async function workFixture(t: test.TestContext): Promise<{ root: string; home: s
 async function runCli(home: string, cache: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<{ code: number | null; stdout: string; stderr: string }> {
   const entrypoint = new URL("./index.js", import.meta.url).pathname;
   const child = spawn(process.execPath, [entrypoint, ...args], {
-    env: { ...process.env, ...env, CODEX_HOME: home, XDG_CACHE_HOME: cache },
+    env: { ...process.env, ...env, HOME: home, XDG_CONFIG_HOME: join(home, "config"), CODEX_HOME: home, XDG_CACHE_HOME: cache },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let stdout = ""; let stderr = "";
