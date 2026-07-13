@@ -1,6 +1,6 @@
 # 0.3.6 Release Plan
 
-Status: Local gates complete — awaiting pushed-commit CI before publication.
+Status: Complete — published and installed on 2026-07-13.
 
 ## Goal
 
@@ -36,7 +36,7 @@ Lane D. This plan does not change Caveat runtime behavior.
   and CLI/MCP publish dependencies are registry-safe `codex-sidecar-core@0.3.6`.
 - [x] Obtain independent final review of protocol compatibility, generate
   non-regression, and fail-closed behavior.
-- [ ] After explicit owner approval only: commit scoped paths, push, require CI,
+- [x] After explicit owner approval only: commit scoped paths, push, require CI,
   publish core before CLI/MCP, verify registry/fresh installs, then tag and
   release `v0.3.6`.
 
@@ -49,6 +49,12 @@ MCP 19 tests passed; all packages built and packed as 0.3.6; CLI/MCP tarballs
 referenced the registry-safe `codex-sidecar-core@0.3.6`; Luna low completed all
 eight attempted Stop/tool-error runs with `status: ok`; the final independent
 review had no surviving compatibility or fail-closed finding.
+
+Release evidence: commit `581e81dd2bf9656adc71d2988ae089e1fb6b96a3` passed CI run
+`29226366326`; all three npm packages were published and verified as 0.3.6 in
+dependency order; the temporary Docker MCP initialize smoke returned 0.3.6;
+fresh-prefix and global CLI/MCP installs returned 0.3.6; annotated tag and
+GitHub Release `v0.3.6` resolve to the verified commit.
 
 ## Rollback
 
