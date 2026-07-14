@@ -6,7 +6,7 @@ work inside isolated git worktrees.
 
 The completed 0.3.6 release added workflow-specific closed output schemas with
 a Codex App Server 0.144.1 preflight while preserving `generate`'s
-caller-owned object/array output contract. The pending 0.3.7 patch makes
+caller-owned object/array output contract. The completed 0.3.7 patch makes
 factory diagnostics safely launch the npm-installed MCP command on Windows.
 
 The completed 0.3.5 release record is archived at
