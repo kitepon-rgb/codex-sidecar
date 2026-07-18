@@ -78,23 +78,20 @@ if (process.argv.length === 3 && process.argv[2] === "--version") {
     process.stdout.write(`${readCliVersion()}\n`);
     exit(0);
   } catch (error) {
-    printJson({
-      status: "failed",
-      error: error instanceof Error ? error.message : String(error),
-    });
-    exit(1);
+    await writeJsonAndSetExit({ status: "failed", error: error instanceof Error ? error.message : String(error) }, 1);
   }
 }
 
-let parsed: CliOptions;
+async function main(): Promise<void> {
+  let parsed!: CliOptions;
 try {
   parsed = parseArgs(process.argv.slice(2));
 } catch (error) {
-  printJson({
+  await writeJsonAndSetExit({
     status: "failed",
     error: error instanceof Error ? error.message : String(error),
-  });
-  exit(1);
+  }, 1);
+  return;
 }
 
 if (!parsed.workflow) {
@@ -104,8 +101,8 @@ if (!parsed.workflow) {
 
 try {
   if (parsed.workflow === "auth-status") {
-    printJson(await inspectCurrentDurableAuthRecovery());
-    exit(0);
+    await writeJsonAndSetExit(await inspectCurrentDurableAuthRecovery(), 0);
+    return;
   }
 
   if (parsed.workflow === "auth-recover") {
@@ -117,20 +114,20 @@ try {
       strategy: parsed.authRecoveryStrategy as AuthRecoveryStrategy,
       confirmNoRunningProcesses: true,
     });
-    printJson({ status: "ok", sessionId: parsed.sessionId, strategy: parsed.authRecoveryStrategy });
-    exit(0);
+    await writeJsonAndSetExit({ status: "ok", sessionId: parsed.sessionId, strategy: parsed.authRecoveryStrategy }, 0);
+    return;
   }
 
   if (parsed.workflow === "work-result") {
     const result = await getWorkRunResult(workLookup(parsed));
-    printJson(result);
-    exit(runExitCode(result));
+    await writeJsonAndSetExit(result, runExitCode(result));
+    return;
   }
 
   if (parsed.workflow === "work-cancel") {
     const result = await cancelWorkRun(workLookup(parsed));
-    printJson(result);
-    exit(runExitCode(result));
+    await writeJsonAndSetExit(result, runExitCode(result));
+    return;
   }
 
   if (parsed.workflow === "work-recover") {
@@ -141,44 +138,41 @@ try {
     const result = parsed.workRecoveryAction === "quarantine"
       ? await recoverWorkRun({ ...lookup, action: "quarantine", confirmNoRunningProcesses: true })
       : await inspectWorkRecovery(lookup);
-    printJson(result);
-    exit(runExitCode(result.status));
+    await writeJsonAndSetExit(result, runExitCode(result.status));
+    return;
   }
 
   if (parsed.workflow === "work-auth-recover") {
     const lookup = workLookup(parsed);
     if (parsed.authRecoveryStrategy === undefined) {
       if (parsed.confirmNoRunningProcesses) throw new Error("--strategy is required when --confirm-no-running-processes is set");
-      printJson(await inspectWorkAuthRecovery(lookup));
-      exit(0);
+      await writeJsonAndSetExit(await inspectWorkAuthRecovery(lookup), 0); return;
     }
     if (!parsed.confirmNoRunningProcesses) throw new Error("--confirm-no-running-processes is required for work-auth-recover");
-    printJson(await recoverWorkAuthSession({
+    await writeJsonAndSetExit(await recoverWorkAuthSession({
       ...lookup,
-      strategy: parsed.authRecoveryStrategy,
+      strategy: parsed.authRecoveryStrategy as WorkAuthRecoveryStrategy,
       confirmNoRunningProcesses: true,
-    }));
-    exit(0);
+    }), 0); return;
   }
 
   if (parsed.workflow === "factory-errors") {
     const action = parsed.factoryErrorAction ?? "snapshot";
     if (action === "snapshot") {
-      printJson({ status: "ok", factoryRuntimeErrors: await readSidecarRuntimeErrors() });
+      await writeJsonAndSetExit({ status: "ok", factoryRuntimeErrors: await readSidecarRuntimeErrors() }, 0); return;
     } else if (action === "ack") {
       if (parsed.factoryErrorCursor === undefined) throw new Error("--cursor is required for factory-errors --action ack");
       await acknowledgeSidecarRuntimeErrors(parsed.factoryErrorCursor);
-      printJson({ status: "ok", action, cursor: parsed.factoryErrorCursor });
+      await writeJsonAndSetExit({ status: "ok", action, cursor: parsed.factoryErrorCursor }, 0); return;
     } else if (action === "resolve") {
       if (!parsed.factoryErrorFingerprint) throw new Error("--fingerprint is required for factory-errors --action resolve");
-      printJson({ status: "ok", action, resolved: await resolveSidecarRuntimeError(parsed.factoryErrorFingerprint) });
+      await writeJsonAndSetExit({ status: "ok", action, resolved: await resolveSidecarRuntimeError(parsed.factoryErrorFingerprint) }, 0); return;
     } else if (action === "reopen") {
       if (!parsed.factoryErrorFingerprint) throw new Error("--fingerprint is required for factory-errors --action reopen");
-      printJson({ status: "ok", action, reopened: await reopenSidecarRuntimeError(parsed.factoryErrorFingerprint) });
+      await writeJsonAndSetExit({ status: "ok", action, reopened: await reopenSidecarRuntimeError(parsed.factoryErrorFingerprint) }, 0); return;
     } else {
-      printJson({ status: "ok", action, removed: await compactSidecarRuntimeErrors() });
+      await writeJsonAndSetExit({ status: "ok", action, removed: await compactSidecarRuntimeErrors() }, 0); return;
     }
-    exit(0);
   }
 
   if (parsed.workflow === "work-start") {
@@ -200,8 +194,7 @@ try {
         dryRun: parsed.dryRun,
       },
     );
-    printJson(result);
-    exit(runExitCode(result));
+    await writeJsonAndSetExit(result, runExitCode(result)); return;
   }
 
   const config = await loadSidecarConfig(parsed.projectRoot, parsed.configFile);
@@ -226,14 +219,13 @@ try {
       dryRun: true,
     });
 
-    printJson({
+    await writeJsonAndSetExit({
       status: "ok",
       configFile: parsed.configFile,
       projectRoot: parsed.projectRoot,
       normalizedRequest: request,
       modelPolicy: modelPolicyInfo(request),
-    });
-    exit(0);
+    }, 0); return;
   }
 
   if (parsed.workflow === "factory-diagnostics") {
@@ -246,7 +238,7 @@ try {
       interruptOnTimeout: parsed.interruptOnTimeout,
       preserveWorktree: parsed.preserveWorktree,
     });
-    await printJsonAndExit({ status: factoryReadiness.overall === "ready" ? "ok" : "failed", factoryReadiness }, factoryReadiness.overall === "ready" ? 0 : 1);
+    await writeJsonAndSetExit({ status: factoryReadiness.overall === "ready" ? "ok" : "failed", factoryReadiness }, factoryReadiness.overall === "ready" ? 0 : 1); return;
   }
   if (!isSidecarWorkflow(parsed.workflow)) throw new Error(`Unknown command: ${parsed.workflow}`);
   const result = await runSidecarRequest(config, {
@@ -264,31 +256,30 @@ try {
     dryRun: parsed.dryRun,
   });
 
-  printJson(result);
-  exit(result.status === "failed" || result.status === "refused" ? 1 : 0);
+  await writeJsonAndSetExit(result, result.status === "failed" || result.status === "refused" ? 1 : 0); return;
 } catch (error) {
   if (parsed.workflow === "factory-errors") {
-    printJson({ status: "failed", errorCode: "FACTORY_RUNTIME_ERROR_STORE_UNAVAILABLE" });
-    exit(1);
+    await writeJsonAndSetExit({ status: "failed", errorCode: "FACTORY_RUNTIME_ERROR_STORE_UNAVAILABLE" }, 1); return;
   }
   if (parsed.workflow === "factory-diagnostics") {
-    await printJsonAndExit({
+    await writeJsonAndSetExit({
       status: "failed",
       factoryReadiness: nativeFactoryDiagnosticFailure(),
       errorCode: toSidecarError(error).code,
-    }, 1);
+    }, 1); return;
   }
   if (parsed.workflow && isAsyncWorkCommand(parsed.workflow)) {
     const result = runOperationError(error);
-    printJson(result);
-    exit(runExitCode(result));
+    await writeJsonAndSetExit(result, runExitCode(result)); return;
   }
-  printJson({
+  await writeJsonAndSetExit({
     status: "failed",
     error: error instanceof Error ? error.message : String(error),
-  });
-  exit(1);
+  }, 1); return;
 }
+}
+
+if (!(process.argv.length === 3 && process.argv[2] === "--version")) await main();
 
 function parseArgs(args: string[]): CliOptions {
   const options: CliOptions = {
@@ -549,11 +540,7 @@ function printUsage(): void {
   console.error("Factory errors: factory-errors [--action snapshot|ack|resolve|reopen|compact] [--cursor <n>] [--fingerprint <sha256>]");
 }
 
-function printJson(value: unknown): void {
-  console.log(JSON.stringify(value, null, 2));
-}
-
-async function printJsonAndExit(value: unknown, code: number): Promise<never> {
+async function writeJsonAndSetExit(value: unknown, code: number): Promise<void> {
   const writeFailed = await new Promise<boolean>((resolve) => {
     let settled = false;
     const finish = (failed: boolean) => {
@@ -564,12 +551,12 @@ async function printJsonAndExit(value: unknown, code: number): Promise<never> {
     const onError = () => finish(true);
     process.stdout.once("error", onError);
     try {
-      process.stdout.write(`${JSON.stringify(value, null, 2)}\n`, (error) => finish(error !== undefined && error !== null));
+      process.stdout.end(`${JSON.stringify(value, null, 2)}\n`, () => finish(false));
     } catch {
       finish(true);
     }
   });
-  exit(writeFailed ? 1 : code);
+  process.exitCode = writeFailed ? 1 : code;
 }
 
 function readContextFile(path: string): SidecarContextBlock[] {

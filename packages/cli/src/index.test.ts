@@ -71,6 +71,7 @@ test("auth-recover rejects unknown strategy and missing confirmation before muta
   const root = await fixture(t);
   const unknown = await runCli(root.home, root.cache, ["auth-recover", "--session-id", "session-a", "--strategy", "not-a-strategy", "--confirm-no-running-processes"]);
   assert.equal(unknown.code, 1); assert.match(unknown.stdout, /--strategy must be one of/);
+  assert.equal(unknown.stderr, "");
   const unconfirmed = await runCli(root.home, root.cache, ["auth-recover", "--session-id", "session-a", "--strategy", "release-never-started"]);
   assert.equal(unconfirmed.code, 1); assert.match(unconfirmed.stdout, /--confirm-no-running-processes is required/);
   await assert.rejects(() => lstat(root.cache), { code: "ENOENT" });
@@ -95,6 +96,17 @@ test("diagnostics preserves the normalized request compatibility contract", asyn
   assert.equal(payload.normalizedRequest.dryRun, true);
   assert.equal(payload.modelPolicy.source, "inherited");
   assert.equal("factoryReadiness" in payload, false);
+});
+
+test("diagnostics flushes a pipe-capacity-sized prompt with exit 0", async (t) => {
+  const root = await workFixture(t);
+  const prompt = "x".repeat(100_000);
+  const result = await runCli(root.home, root.cache, ["diagnostics", "--project", root.repo, prompt]);
+  assert.equal(result.code, 0, result.stdout);
+  const payload = JSON.parse(result.stdout) as { status: string; normalizedRequest: { prompt?: string } };
+  assert.equal(payload.status, "ok");
+  assert.equal(payload.normalizedRequest.prompt, prompt);
+  assert.ok(Buffer.byteLength(result.stdout, "utf8") > 65_536);
 });
 
 test("factory-diagnostics flushes complete ready JSON through a pipe without exposing request or filesystem data", async (t) => {
@@ -190,6 +202,7 @@ test("factory-diagnostics reports configuration failure as unverified without ex
   await writeFile(join(root.repo, ".codex-sidecar.yml"), "project: [\n");
   const result = await runCli(root.home, root.cache, ["factory-diagnostics", "--project", root.repo]);
   assert.equal(result.code, 1);
+  assert.equal(result.stderr, "");
   assert.ok(result.stdout.endsWith("\n"));
   assert.deepEqual(JSON.parse(result.stdout), {
     status: "failed",
@@ -541,6 +554,7 @@ test("async work CLI maps durable lookup errors to a non-zero exit", async (t) =
     "work-result", "--project-root", root.repo, "--idempotency-key", "BBBBBBBBBBBBBBBBBBBBBB",
   ]);
   assert.equal(missing.code, 1, missing.stdout);
+  assert.equal(missing.stderr, "");
   const payload = JSON.parse(missing.stdout) as { kind: string; error: { code: string } };
   assert.equal(payload.kind, "run_error");
   assert.equal(payload.error.code, "RUN_NOT_FOUND");
