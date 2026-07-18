@@ -28,3 +28,4 @@ the docs above and the implementation before making changes.
 - [archive/CLI_VERSION_PLAN.md](archive/CLI_VERSION_PLAN.md): completed CLI/MCP version contract and 0.3.4 release record.
 - [archive/RELEASE_0_3_5_PLAN.md](archive/RELEASE_0_3_5_PLAN.md): completed 0.3.5 threshold-inheritance removal and release record.
 - [archive/RELEASE_0_3_6_PLAN.md](archive/RELEASE_0_3_6_PLAN.md): completed 0.3.6 structured-output contract and release record.
+- [archive/plan_factory-diagnostics-output-integrity.md](archive/plan_factory-diagnostics-output-integrity.md): completed 0.3.8 JSON stdout integrity repair and release record.
