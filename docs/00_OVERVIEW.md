@@ -29,7 +29,7 @@ The completed 0.3.8 JSON stdout integrity and release record is archived at
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries, layering, safety model, and dependency direction.
 - [PROTOCOL.md](PROTOCOL.md): Codex App Server boundary, stable contracts, structured output, and transport notes.
 - [TODO.md](TODO.md): durable project task list and external coordination.
-- [adr/](adr/): architecture decision records. No ADR entries are filed yet.
+- [adr/INDEX.md](adr/INDEX.md): architecture decision records and acceptance evidence.
 
 ## Layout Standard Status
 

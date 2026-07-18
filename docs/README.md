@@ -12,8 +12,8 @@ This directory keeps the current operating docs for `codex-sidecar`.
 
 ## Decisions
 
-Architecture decision records live under [adr/](adr/). No decision records are
-currently filed there.
+Architecture decision records and acceptance evidence are indexed at
+[adr/INDEX.md](adr/INDEX.md).
 
 ## Archive
 
