@@ -19,3 +19,15 @@ machine-readable診断契約を復旧する。
 - factory diagnosticsのJSON shapeやprivacy境界を変更しない
 - workflow実行、Codex agent起動、active worktreeへのsidecar writeは行わない
 - publish / global install / pushは目的・影響・rollbackを明示した承認境界として扱う
+
+## 監査で判明した同根P1
+
+`factory-diagnostics`の修理監査中に、通常の`diagnostics`へ大きなpromptを渡すと、終了コード0の
+ままstdoutが65,536 byteで切れ、JSONとして読めないことを再現した。workflow結果を含む他の
+machine-readable出力も`printJson`直後に`process.exit`する同じ根本原因を持つ。
+
+- [ ] 全machine-readable CLIのJSON出力を、write完了後に終了する共通経路へ統一する
+- [ ] 大容量`diagnostics`を実processのpipeで回収し、完全JSONと終了コード0を固定する
+- [ ] factory診断の大容量・EPIPE・privacy回帰を維持する
+- [ ] CLI testとworkspace buildをgreenにする
+- [ ] pack / fresh install / version更新 / publish / global install / 公開後smokeをrelease gateで閉じる
