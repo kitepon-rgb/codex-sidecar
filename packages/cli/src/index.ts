@@ -246,8 +246,7 @@ try {
       interruptOnTimeout: parsed.interruptOnTimeout,
       preserveWorktree: parsed.preserveWorktree,
     });
-    printJson({ status: factoryReadiness.overall === "ready" ? "ok" : "failed", factoryReadiness });
-    exit(factoryReadiness.overall === "ready" ? 0 : 1);
+    await printJsonAndExit({ status: factoryReadiness.overall === "ready" ? "ok" : "failed", factoryReadiness }, factoryReadiness.overall === "ready" ? 0 : 1);
   }
   if (!isSidecarWorkflow(parsed.workflow)) throw new Error(`Unknown command: ${parsed.workflow}`);
   const result = await runSidecarRequest(config, {
@@ -273,12 +272,11 @@ try {
     exit(1);
   }
   if (parsed.workflow === "factory-diagnostics") {
-    printJson({
+    await printJsonAndExit({
       status: "failed",
       factoryReadiness: nativeFactoryDiagnosticFailure(),
       errorCode: toSidecarError(error).code,
-    });
-    exit(1);
+    }, 1);
   }
   if (parsed.workflow && isAsyncWorkCommand(parsed.workflow)) {
     const result = runOperationError(error);
@@ -553,6 +551,25 @@ function printUsage(): void {
 
 function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
+}
+
+async function printJsonAndExit(value: unknown, code: number): Promise<never> {
+  const writeFailed = await new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (failed: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(failed);
+    };
+    const onError = () => finish(true);
+    process.stdout.once("error", onError);
+    try {
+      process.stdout.write(`${JSON.stringify(value, null, 2)}\n`, (error) => finish(error !== undefined && error !== null));
+    } catch {
+      finish(true);
+    }
+  });
+  exit(writeFailed ? 1 : code);
 }
 
 function readContextFile(path: string): SidecarContextBlock[] {

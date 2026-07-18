@@ -97,7 +97,7 @@ test("diagnostics preserves the normalized request compatibility contract", asyn
   assert.equal("factoryReadiness" in payload, false);
 });
 
-test("factory-diagnostics returns native readiness without exposing request or filesystem data", async (t) => {
+test("factory-diagnostics flushes complete ready JSON through a pipe without exposing request or filesystem data", async (t) => {
   const root = await workFixture(t);
   const bin = join(root.root, "bin");
   await mkdir(bin);
@@ -129,6 +129,7 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-si
   });
 
   assert.equal(result.code, 0, result.stdout);
+  assert.ok(result.stdout.endsWith("\n"));
   const payload = JSON.parse(result.stdout) as {
     status: string;
     factoryReadiness: {
@@ -189,12 +190,63 @@ test("factory-diagnostics reports configuration failure as unverified without ex
   await writeFile(join(root.repo, ".codex-sidecar.yml"), "project: [\n");
   const result = await runCli(root.home, root.cache, ["factory-diagnostics", "--project", root.repo]);
   assert.equal(result.code, 1);
+  assert.ok(result.stdout.endsWith("\n"));
   assert.deepEqual(JSON.parse(result.stdout), {
     status: "failed",
     factoryReadiness: { schemaVersion: "1", overall: "unverified" },
     errorCode: "PROTOCOL_ERROR",
   });
   assert.doesNotMatch(result.stdout, new RegExp(root.root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("factory-diagnostics flushes a pipe-capacity-sized not-ready response before exit", async (t) => {
+  const root = await workFixture(t);
+  const bin = join(root.root, "bin");
+  await mkdir(bin);
+  const mcp = join(bin, "codex-sidecar-mcp");
+  const version = `0.3.7+${"a".repeat(65_000)}`;
+  await writeFile(mcp, `#!/bin/sh
+read request
+printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-sidecar","version":"${version}"}}}'
+`);
+  await chmod(mcp, 0o755);
+
+  const result = await runCli(root.home, root.cache, ["factory-diagnostics", "--project", root.repo], {
+    PATH: `${bin}:${process.env.PATH}`,
+    XDG_STATE_HOME: join(root.home, "state"),
+    FACTORY_REPORTER_CONFIG: join(root.home, "missing-factory-reporter.json"),
+  }, 100);
+
+  assert.equal(result.code, 1, result.stdout);
+  assert.ok(Buffer.byteLength(result.stdout, "utf8") > 65_536);
+  assert.ok(result.stdout.endsWith("\n"));
+  const payload = JSON.parse(result.stdout) as { status: string; factoryReadiness: { overall: string; packageVersions: { packages: { mcp: string } } } };
+  assert.equal(payload.status, "failed");
+  assert.equal(payload.factoryReadiness.overall, "not_ready");
+  assert.equal(payload.factoryReadiness.packageVersions.packages.mcp, version);
+});
+
+test("factory-diagnostics handles EPIPE without rewriting JSON or reporting an unhandled error", async (t) => {
+  const root = await workFixture(t);
+  const bin = join(root.root, "bin");
+  await mkdir(bin);
+  const mcp = join(bin, "codex-sidecar-mcp");
+  const version = `0.3.7+${"a".repeat(65_000)}`;
+  await writeFile(mcp, `#!/bin/sh
+read request
+printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-sidecar","version":"${version}"}}}'
+`);
+  await chmod(mcp, 0o755);
+
+  const result = await runCliWithBrokenPipe(root.home, root.cache, ["factory-diagnostics", "--project", root.repo], {
+    PATH: `${bin}:${process.env.PATH}`,
+    XDG_STATE_HOME: join(root.home, "state"),
+    FACTORY_REPORTER_CONFIG: join(root.home, "missing-factory-reporter.json"),
+  });
+
+  assert.equal(result.code, 1, result.stderr);
+  assert.ok(result.stdout.length > 0);
+  assert.equal(result.stderr, "");
 });
 
 test("Windows factory diagnostics resolves only a verified npm cmd shim to its Node entrypoint", async () => {
@@ -541,7 +593,7 @@ async function workFixture(t: test.TestContext): Promise<{ root: string; home: s
   return { ...root, repo };
 }
 
-async function runCli(home: string, cache: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<{ code: number | null; stdout: string; stderr: string }> {
+async function runCli(home: string, cache: string, args: string[], env: NodeJS.ProcessEnv = {}, stdoutReadDelayMs = 0): Promise<{ code: number | null; stdout: string; stderr: string }> {
   const entrypoint = new URL("./index.js", import.meta.url).pathname;
   const child = spawn(process.execPath, [entrypoint, ...args], {
     env: { ...process.env, ...env, HOME: home, XDG_CONFIG_HOME: join(home, "config"), CODEX_HOME: home, XDG_CACHE_HOME: cache },
@@ -549,7 +601,27 @@ async function runCli(home: string, cache: string, args: string[], env: NodeJS.P
   });
   let stdout = ""; let stderr = "";
   child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
+  const completion = new Promise<number | null>((resolve, reject) => {
+    child.once("error", reject);
+    child.stdout.once("error", reject);
+    child.once("close", resolve);
+  });
+  if (stdoutReadDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, stdoutReadDelayMs));
   child.stdout.on("data", (chunk: string) => { stdout += chunk; }); child.stderr.on("data", (chunk: string) => { stderr += chunk; });
-  const code = await new Promise<number | null>((resolve, reject) => { child.once("error", reject); child.once("exit", resolve); });
+  const code = await completion;
+  return { code, stdout, stderr };
+}
+
+async function runCliWithBrokenPipe(home: string, cache: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const entrypoint = new URL("./index.js", import.meta.url).pathname;
+  const child = spawn(process.execPath, [entrypoint, ...args], {
+    env: { ...process.env, ...env, HOME: home, XDG_CONFIG_HOME: join(home, "config"), CODEX_HOME: home, XDG_CACHE_HOME: cache },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = ""; let stderr = "";
+  child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
+  child.stdout.once("data", (chunk: string) => { stdout += chunk; child.stdout.destroy(); });
+  child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+  const code = await new Promise<number | null>((resolve, reject) => { child.once("error", reject); child.stdout.once("error", reject); child.once("close", resolve); });
   return { code, stdout, stderr };
 }
