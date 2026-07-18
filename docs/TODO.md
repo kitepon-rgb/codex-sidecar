@@ -48,6 +48,35 @@ changes.
 | P0 | Make long-running `codex_work` survive MCP client restart and expose durable result retrieval | Done | [LONG_RUNNING_WORK_RESILIENCE_PLAN.md](archive/LONG_RUNNING_WORK_RESILIENCE_PLAN.md) |
 | P2 | Add a supported `codex-sidecar --version` CLI flag | Done | [CLI_VERSION_PLAN.md](archive/CLI_VERSION_PLAN.md) |
 
+## Reproduced Defects (2026-07-18, dotagents R2 campaign, P1 triage pending)
+
+Observed on Mac during real dotagents operation. Register-first per the factory
+defect ruling; fix in independent gates on this repo.
+
+- [ ] **Stale sync-session auth lease blocks the work queue with no recovery
+  path.** A durable auth lease held by a dead sync-session (owner process gone,
+  no open journal handles) left `codex_work_start` queued at `auth-queue`
+  indefinitely. `codex_work_auth_recover` refuses with `RUN_AUTH_UNCERTAIN`
+  because the work run is not the lease owner, and no sync-session-side recovery
+  entrance exists. Reproduced: lease `gVodIdieIuKdK8sIeCFSKmZz` (backed up to
+  `~/Archives/codex-sidecar-stale-lease-gVodIdieIuKdK8sIeCFSKmZz` before manual
+  removal). Need: dead-owner detection (PID liveness + journal handle check) and
+  a lease takeover/release entrance that works from the queued work run.
+- [ ] **`codex-sidecar-mcp` startup hangs indefinitely when the durable lease
+  state is wedged.** A fresh Codex TUI blocked >12 minutes at "Starting MCP
+  servers: codex-sidecar" with no timeout and no error. Startup must not block
+  on lease/state acquisition; it should come up and report degraded status via
+  diagnostics instead.
+- [ ] **Session/process leak.** ~25 `codex-sidecar-mcp` processes accumulated
+  (mostly children of the ChatGPT.app Codex app-server, spawned Jul 17) and
+  `~/Library/Caches/codex-sidecar/auth-sessions/` held 96 session dirs. No
+  reaping/retention exists. Need idle-exit or parent-death detection plus
+  auth-session retention pruning.
+- [ ] **Caveat advisory integration fails on every prompt** (`advisory
+  unavailable: sidecar command failed`) on this Mac. Likely the same wedged
+  lease/state; re-verify after the above fixes and add a fast-fail diagnostic
+  reason instead of a truncated error.
+
 ## Local CodeGraph Setup
 
 CodeGraph is installed globally for Codex as the `codegraph` MCP server, and
