@@ -116,7 +116,7 @@ test("factory-diagnostics flushes complete ready JSON through a pipe without exp
   const mcp = join(bin, "codex-sidecar-mcp");
   await writeFile(mcp, `#!/bin/sh
 read request
-printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-sidecar","version":"0.3.7"}}}'
+printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-sidecar","version":"0.3.8"}}}'
 `);
   await chmod(mcp, 0o755);
   const context = join(root.repo, "context.json");
@@ -163,9 +163,9 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-si
     packageVersions: {
       status: "ready",
       packages: {
-        cli: "0.3.7",
-        core: "0.3.7",
-        mcp: "0.3.7",
+        cli: "0.3.8",
+        core: "0.3.8",
+        mcp: "0.3.8",
       },
     },
     resultSchema: { status: "ready" },

@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.3.8] — 2026-07-19
+
+### Fixed
+- All JSON-producing CLI paths now wait for stdout completion before exiting.
+- Repaired truncated large `diagnostics` and `factory-diagnostics` JSON output.
+- On `EPIPE`, the CLI exits non-zero without attempting to reprint corrupted JSON.
+- Added regression coverage for the related stdout-completion and large-output paths.
+
 ## [0.3.6] — 2026-07-13
 
 ### Added
