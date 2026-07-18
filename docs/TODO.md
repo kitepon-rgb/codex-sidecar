@@ -76,6 +76,13 @@ defect ruling; fix in independent gates on this repo.
   unavailable: sidecar command failed`) on this Mac. Likely the same wedged
   lease/state; re-verify after the above fixes and add a fast-fail diagnostic
   reason instead of a truncated error.
+- [ ] **Read-only `codex_opinion` refused with `AUTH_LEASE_BUSY` while no other
+  sidecar work was intentionally running** (2026-07-18, dotagents LG G1, Mac;
+  raw log `Lattice/.codex-sidecar/logs/app-server/2026-07-18T074922149Z-opinion-a8524db8-*.jsonl`).
+  Read-only workflows serialized behind a (likely stale) auth lease forced the
+  caller to switch to the aiterm lane. After the stale-lease fixes, decide
+  whether read-only workflows need exclusive lease at all, or can queue with a
+  bounded wait + explicit busy-holder diagnostic (owner PID/session in `data`).
 
 ## Local CodeGraph Setup
 
