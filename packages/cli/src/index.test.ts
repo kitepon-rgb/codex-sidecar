@@ -71,7 +71,7 @@ test("auth-recover rejects unknown strategy and missing confirmation before muta
   const root = await fixture(t);
   const unknown = await runCli(root.home, root.cache, ["auth-recover", "--session-id", "session-a", "--strategy", "not-a-strategy", "--confirm-no-running-processes"]);
   assert.equal(unknown.code, 1); assert.match(unknown.stdout, /--strategy must be one of/);
-  assert.equal(unknown.stderr, "");
+  assertNoUnexpectedStderr(unknown.stderr);
   const unconfirmed = await runCli(root.home, root.cache, ["auth-recover", "--session-id", "session-a", "--strategy", "release-never-started"]);
   assert.equal(unconfirmed.code, 1); assert.match(unconfirmed.stdout, /--confirm-no-running-processes is required/);
   await assert.rejects(() => lstat(root.cache), { code: "ENOENT" });
@@ -202,7 +202,7 @@ test("factory-diagnostics reports configuration failure as unverified without ex
   await writeFile(join(root.repo, ".codex-sidecar.yml"), "project: [\n");
   const result = await runCli(root.home, root.cache, ["factory-diagnostics", "--project", root.repo]);
   assert.equal(result.code, 1);
-  assert.equal(result.stderr, "");
+  assertNoUnexpectedStderr(result.stderr);
   assert.ok(result.stdout.endsWith("\n"));
   assert.deepEqual(JSON.parse(result.stdout), {
     status: "failed",
@@ -259,7 +259,7 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"codex-si
 
   assert.equal(result.code, 1, result.stderr);
   assert.ok(result.stdout.length > 0);
-  assert.equal(result.stderr, "");
+  assertNoUnexpectedStderr(result.stderr);
 });
 
 test("Windows factory diagnostics resolves only a verified npm cmd shim to its Node entrypoint", async () => {
@@ -554,7 +554,7 @@ test("async work CLI maps durable lookup errors to a non-zero exit", async (t) =
     "work-result", "--project-root", root.repo, "--idempotency-key", "BBBBBBBBBBBBBBBBBBBBBB",
   ]);
   assert.equal(missing.code, 1, missing.stdout);
-  assert.equal(missing.stderr, "");
+  assertNoUnexpectedStderr(missing.stderr);
   const payload = JSON.parse(missing.stdout) as { kind: string; error: { code: string } };
   assert.equal(payload.kind, "run_error");
   assert.equal(payload.error.code, "RUN_NOT_FOUND");
@@ -624,6 +624,13 @@ async function runCli(home: string, cache: string, args: string[], env: NodeJS.P
   child.stdout.on("data", (chunk: string) => { stdout += chunk; }); child.stderr.on("data", (chunk: string) => { stderr += chunk; });
   const code = await completion;
   return { code, stdout, stderr };
+}
+
+function assertNoUnexpectedStderr(stderr: string): void {
+  const withoutNode24SqliteWarning = stderr
+    .replace(/^\(node:\d+\) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n/, "")
+    .replace(/^\(Use `node --trace-warnings \.\.\.` to show where the warning was created\)\n?/, "");
+  assert.equal(withoutNode24SqliteWarning, "");
 }
 
 async function runCliWithBrokenPipe(home: string, cache: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<{ code: number | null; stdout: string; stderr: string }> {
