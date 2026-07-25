@@ -16,6 +16,10 @@
 > **Run Codex as a safe, isolated sidecar — and get machine-readable answers, not chat transcripts.**
 > `codex-sidecar` lets humans, Claude Code, MCP clients, and hooks ask Codex for code review, exploration, risk checks, and scoped fixes, returning one structured `SidecarResult` JSON per call without ever touching your active working tree.
 
+**Factory role:** codex-sidecar is one of the ten self-owned core products
+managed by the dotagents development factory. It owns isolated Codex execution;
+dotagents owns the cross-product installation and integration contract.
+
 [Usage](docs/USAGE.md) · [Architecture](docs/ARCHITECTURE.md) · [Protocol](docs/PROTOCOL.md)
 
 `codex-sidecar` is a shared execution layer for calling Codex from another
@@ -297,7 +301,7 @@ tools without requiring them:
 - [Throughline](https://github.com/kitepon-rgb/Throughline) compresses Claude Code context and carries explicit handoffs.
 - [Caveat](https://github.com/kitepon-rgb/Caveat) stores long-term trap memory and repo-specific gotchas.
 - [SmartClaude](https://github.com/kitepon-rgb/SmartClaude) measures and optimizes token/context cost.
-- CodeGraph provides local symbol graph context when a repository is initialized.
+- Lattice sensor provides local symbol graph context when a repository is indexed.
 - [image-generator](https://github.com/kitepon-rgb/image-generator) and [IP-MCP](https://github.com/kitepon-rgb/IP-MCP) provide MCP/OAuth/deployment patterns and
   source-boundary lessons.
 
@@ -344,7 +348,7 @@ The current spine is functional:
 - durable detached `codex_work` execution with cross-process result retrieval,
   cancellation, quarantine, and explicit auth recovery
 - ecosystem context adapters and fixture snapshots
-- local CodeGraph index support for this repository
+- local Lattice sensor index support for this repository
 
 The current release is ready for npm-based CLI and MCP installation. The MCP
 stdio server is verified against npm-style symlinked `bin` startup, which is the

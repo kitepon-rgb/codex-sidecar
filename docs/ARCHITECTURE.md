@@ -27,8 +27,8 @@ field rather than the only output.
 - Throughline can provide compressed session context and handoff memos.
 - Caveat can provide trap memories and repo-specific gotchas.
 - SmartClaude can decide whether a Codex call is worth the context/cost.
-- CodeGraph can provide local symbol graph context when a consuming repository
-  has `.codegraph/` initialized.
+- Lattice sensor can provide local symbol graph context when a consuming
+  repository has a Lattice sensor index.
 - image-generator contributes OAuth/MCP hub deployment patterns.
 - IP-MCP contributes source-boundary discipline and no-hidden-fallback rules.
 
@@ -227,10 +227,11 @@ fails, return an explicit error. Do not silently substitute another source or
 implementation path, especially where official/unofficial data boundaries,
 secrets, auth, deploy, or CI behavior are involved.
 
-Codex global CodeGraph is available as an MCP server named `codegraph`, but each
-project must still be initialized with `.codegraph/` before graph queries are
-valid. CodeGraph output is useful for exploration, but edits and final claims
-still need direct file verification.
+Lattice is the formal successor that fully absorbed CodeGraph; independent
+CodeGraph packages, MCP servers, and daemons are retired. Each project still
+needs a Lattice sensor index before graph queries are valid. Sensor output is
+useful for exploration, but edits and final claims still need direct file
+verification.
 
 ## Result Contract
 

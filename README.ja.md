@@ -16,6 +16,9 @@
 > **Codex を安全な隔離 sidecar として呼び出し、チャットの会話ログではなく機械可読な答えを受け取る。**
 > `codex-sidecar` は、人間・Claude Code・MCP client・hook から Codex にコードレビュー、調査、リスク確認、限定的な修正を依頼でき、active working tree に一切触れずに 1 回ごとに構造化された `SidecarResult` JSON を返します。
 
+**工場での役割:** codex-sidecarはdotagents開発工場が管理する自作コア10製品の一つです。
+隔離されたCodex実行を所有し、dotagentsが製品横断の導入・統合契約を所有します。
+
 [Usage](docs/USAGE.md) · [Architecture](docs/ARCHITECTURE.md) · [Protocol](docs/PROTOCOL.md)
 
 `codex-sidecar` は、Claude Code や MCP client、hook、その他の自動化から Codex を呼ぶための共通実行レイヤーです。Codex を主役に置き換えるのではなく、別視点のレビュー、調査、設計への反対意見、限定的な修正能力を安全な境界つきで差し込みます。

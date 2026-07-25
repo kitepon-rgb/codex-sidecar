@@ -84,19 +84,19 @@ defect ruling; fix in independent gates on this repo.
   whether read-only workflows need exclusive lease at all, or can queue with a
   bounded wait + explicit busy-holder diagnostic (owner PID/session in `data`).
 
-## Local CodeGraph Setup
+## Local Lattice Sensor Setup
 
-CodeGraph is installed globally for Codex as the `codegraph` MCP server, and
-the CLI is available. The local graph for this repository was initialized on
-2026-05-05 and `.codegraph/` is intentionally ignored as a local index.
+Lattice is the formal successor that fully absorbed CodeGraph. Independent
+CodeGraph packages, MCP servers, and daemons are retired. Use the Lattice sensor
+for local symbol-graph context; its local index is intentionally ignored.
 
 Useful checks:
 
 ```bash
-rtk codegraph status /path/to/codex-sidecar
+lattice sensor status /path/to/codex-sidecar --json
 ```
 
-Do not treat CodeGraph output as a replacement for direct file verification when
+Do not treat sensor output as a replacement for direct file verification when
 making final claims or edits.
 
 ## External Project Coordination
