@@ -16,9 +16,12 @@
 > **Run Codex as a safe, isolated sidecar — and get machine-readable answers, not chat transcripts.**
 > `codex-sidecar` lets humans, Claude Code, MCP clients, and hooks ask Codex for code review, exploration, risk checks, and scoped fixes, returning one structured `SidecarResult` JSON per call without ever touching your active working tree.
 
-**Factory role:** codex-sidecar is one of the ten self-owned core products
-managed by the dotagents development factory. It owns isolated Codex execution;
-dotagents owns the cross-product installation and integration contract.
+Built and maintained by [Quo](https://x.com/QLyun35332) at [kitepon.dev](https://kitepon.dev/en).
+
+**Ownership boundary:** this repository owns isolated Codex execution.
+Cross-product installation and the integration contract are handled by
+[dotagents](https://github.com/kitepon-rgb/dotagents), the internal development
+toolchain behind kitepon.dev's products.
 
 [Usage](docs/USAGE.md) · [Architecture](docs/ARCHITECTURE.md) · [Protocol](docs/PROTOCOL.md)
 
