@@ -4,6 +4,15 @@
   "private": true,
   "description": "Shared Codex sidecar agent bridge for reviews, exploration, and scoped work.",
   "license": "MIT",
+  "author": {
+    "name": "Quo / クオ at kitepon.dev",
+    "url": "https://x.com/QLyun35332"
+  },
+  "homepage": "https://github.com/kitepon-rgb/codex-sidecar#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kitepon-rgb/codex-sidecar.git"
+  },
   "type": "module",
   "scripts": {
     "build": "corepack pnpm -r build",

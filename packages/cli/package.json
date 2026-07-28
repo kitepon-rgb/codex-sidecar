@@ -3,6 +3,15 @@
   "version": "0.3.8",
   "private": false,
   "license": "MIT",
+  "author": {
+    "name": "Quo / クオ at kitepon.dev",
+    "url": "https://x.com/QLyun35332"
+  },
+  "homepage": "https://github.com/kitepon-rgb/codex-sidecar#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kitepon-rgb/codex-sidecar.git"
+  },
   "type": "module",
   "bin": {
     "codex-sidecar": "dist/index.js"
