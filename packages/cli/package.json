@@ -5,12 +5,15 @@
   "license": "MIT",
   "author": {
     "name": "Quo / クオ at kitepon.dev",
-    "url": "https://x.com/QLyun35332"
+    "url": "https://kitepon.dev/"
   },
   "homepage": "https://github.com/kitepon-rgb/codex-sidecar#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kitepon-rgb/codex-sidecar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kitepon-rgb/codex-sidecar/issues"
   },
   "type": "module",
   "bin": {
